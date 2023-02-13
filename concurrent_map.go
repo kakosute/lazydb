@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	defaultShardCount = 16
+	defaultShardCount = 32
 )
 
 type MapShard[K comparable] struct {
