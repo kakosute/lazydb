@@ -2,11 +2,3 @@
 .fleet/
 .idea/
 .vscode/
-
-# OS
-.DS_Store
-__MACOSX/
-
-# build
-*.exe
-*/lazydb
