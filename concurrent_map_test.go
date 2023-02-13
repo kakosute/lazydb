@@ -220,7 +220,7 @@ func TestMapShard_Pop(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			valueGot, flagGot := tt.ms.Pop(tt.args.key)
 			if !reflect.DeepEqual(valueGot, tt.valueWant) {
-				t.Errorf("Pop() valueGot = %v, valueWant %v", valueGot, tt.valueWant)
+				t.Errorf("Pop() valueGot = %v, valueWant %v", valueGot, tt.valueWant.(string))
 			}
 			if flagGot != tt.flagWant {
 				t.Errorf("Pop() flagGot = %v, flagWant %v", flagGot, tt.flagWant)
