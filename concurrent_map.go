@@ -88,16 +88,20 @@ func (cm *ConcurrentMap[K]) GetShard(key K) *MapShard[K] {
 }
 
 // GetShardByReading returns the MapShard under the given key after RLocking.
+// Remember to unlock the shard!
 func (cm *ConcurrentMap[K]) GetShardByReading(key K) *MapShard[K] {
 	shard := cm.GetShard(key)
 	shard.RLock()
+	// remember to RUnlock
 	return shard
 }
 
 // GetShardByWriting returns the MapShard under the given key after Locking.
+// Remember to unlock the shard!
 func (cm *ConcurrentMap[K]) GetShardByWriting(key K) *MapShard[K] {
 	shard := cm.GetShard(key)
 	shard.Lock()
+	// remember to Unlock
 	return shard
 }
 
