@@ -5,7 +5,9 @@ import (
 )
 
 type LazyDB struct {
-	mu sync.RWMutex
+	cfg   *DBConfig
+	index *ConcurrentMap[string]
+	mu    sync.RWMutex
 }
 
 func Open() (*LazyDB, error) {
