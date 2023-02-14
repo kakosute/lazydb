@@ -1,13 +1,13 @@
 package logfile
 
-// EntryType type of Entry.
+// status of LogEntry
 type Status uint8
 
 const (
 	// SDelete represents entry type is delete.
-	Delete Status = iota
+	SDelete Status = iota
 	// SListMeta represents entry is list meta.
-	ListMeta
+	SListMeta
 )
 
 // LogEntry is the data will be appended in log file.

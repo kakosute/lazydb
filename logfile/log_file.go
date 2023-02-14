@@ -1,8 +1,8 @@
 package logfile
 
-import "github.com/magimaki/lazydb/iocontroller"
+import "lazydb/iocontroller"
 
-// IOType represents different types of file io: FileIO(standard file io) and MMap(Memory Map).
+// IOType represents different types of file io: FileIO(standard file io)
 type IOType uint8
 
 const (
