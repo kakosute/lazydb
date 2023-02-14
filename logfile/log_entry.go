@@ -1,6 +1,6 @@
 package logfile
 
-// status of LogEntry
+// Status of LogEntry.
 type Status uint8
 
 const (
@@ -21,8 +21,7 @@ type LogEntry struct {
 	Value    []byte // value
 }
 
-// encode LogEntry into binary form
-// return binary LogEntry and the size of LogEntry
+// EncodeEntry encodes LogEntry into binary form, returns binary LogEntry and the size of LogEntry.
 func EncodeEntry(le *LogEntry) ([]byte, int) {
 	var size = 1
 	buf := make([]byte, size)

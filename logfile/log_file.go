@@ -2,7 +2,7 @@ package logfile
 
 import "lazydb/iocontroller"
 
-// IOType represents different types of file io: FileIO(standard file io)
+// IOType represents different types of file io: FileIO(standard file io).
 type IOType uint8
 
 const (
@@ -18,7 +18,7 @@ type LogFile struct {
 	IoController iocontroller.IOController
 }
 
-// Open open an existing or create a new log file.
+// Open opens an existing or create a new log file.
 // fsize must be a postitive number.And we will create io controller according to ioType.
 func Open(path string, fid uint32, fsize int64, ftype uint8, ioType IOType) (lf *LogFile, err error) {
 	return &LogFile{}, nil
