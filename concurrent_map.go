@@ -23,7 +23,6 @@ func (ms *MapShard[K]) Get(key K) (any, bool) {
 // Set sets the key and value under a specific MapShard.
 func (ms *MapShard[K]) Set(key K, value any) {
 	ms.simpleMap[key] = value
-
 }
 
 // Has returns if the map contains a specific key.
