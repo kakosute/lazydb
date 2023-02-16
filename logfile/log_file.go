@@ -19,7 +19,7 @@ type LogFile struct {
 	Fid          uint32
 	Offset       int64
 	IoController iocontroller.IOController
-	RWLock       sync.RWMutex
+	Mu           sync.RWMutex
 }
 
 // Open opens an existing or create a new log file.

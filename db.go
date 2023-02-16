@@ -102,15 +102,19 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 	}
 
 	entBuf, entSize := logfile.EncodeEntry(entry)
+
+	curLogFile.Mu.RLock()
 	// maxsize exceeded
 	if curLogFile.Offset+int64(entSize) > db.cfg.MaxLogFileSize {
 		if err := curLogFile.Sync(); err != nil {
+			curLogFile.Mu.RUnlock()
 			return nil, err
 		}
 
 		newFid := curLogFile.Fid + 1
 		newCurLogFile, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
 		if err != nil {
+			curLogFile.Mu.RUnlock()
 			return nil, err
 		}
 
@@ -124,10 +128,12 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 
 		// update curLogFile
 		db.curLogFile.Set(typ, newCurLogFile)
+		curLogFile.Mu.RUnlock()
 		curLogFile = newCurLogFile
 	}
 
-	//TODO: may cause concurrent conflict!
+	curLogFile.Mu.Lock()
+	defer curLogFile.Mu.Unlock()
 	writeAt := atomic.LoadInt64(&curLogFile.Offset)
 	if err := curLogFile.Write(entBuf); err != nil {
 		return nil, err
