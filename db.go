@@ -5,6 +5,7 @@ import (
 	"lazydb/logfile"
 	"log"
 	"sync"
+	"sync/atomic"
 )
 
 type (
@@ -91,8 +92,52 @@ func (db *LazyDB) readLogEntry(typ valueType, fid uint32, offset int64) (*logfil
 // writeLogEntry writes entry into active log file and returns position.
 // Return nil and error if writing fails.
 func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValuePos, error) {
+	if err := db.initLogFiles(typ); err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	curLogFile := db.getCurLogFile(typ)
+	if curLogFile == nil {
+		return nil, ErrOpenLogFile
+	}
+
+	entBuf, entSize := logfile.EncodeEntry(entry)
+	// maxsize exceeded
+	if curLogFile.Offset+int64(entSize) > db.cfg.MaxLogFileSize {
+		if err := curLogFile.Sync(); err != nil {
+			return nil, err
+		}
+
+		newFid := curLogFile.Fid + 1
+		newCurLogFile, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
+		if err != nil {
+			return nil, err
+		}
+
+		// move curLogFile to archive
+		db.archivedLogFile[typ].Set(newFid, newCurLogFile)
+
+		// insert new fid
+		fidList := db.getFidListByType(typ)
+		fidList = append(fidList, newFid)
+		db.fidsMap.Set(typ, fidList)
+
+		// update curLogFile
+		db.curLogFile.Set(typ, newCurLogFile)
+		curLogFile = newCurLogFile
+	}
+
+	//TODO: may cause concurrent conflict!
+	writeAt := atomic.LoadInt64(&curLogFile.Offset)
+	if err := curLogFile.Write(entBuf); err != nil {
+		return nil, err
+	}
+	valPos := &ValuePos{
+		fid:       curLogFile.Fid,
+		offset:    writeAt,
+		entrySize: entSize,
+	}
+	return valPos, nil
 }
 
 func (db *LazyDB) initLogFiles(typ valueType) error {
@@ -111,7 +156,7 @@ func (db *LazyDB) getCurLogFile(typ valueType) *logfile.LogFile {
 	// create a new LogFile
 	if !ok {
 		//todo param typ
-		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, typ, db.cfg.IOType)
+		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
 		if err != nil {
 			log.Fatalf("Create log file error: %v", err)
 			return nil
@@ -136,6 +181,15 @@ func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *logfile.LogFile
 	return lf
 }
 
+// getFidListByType returns a slice of fid by valueType
+// It initializes an empty slice if fid list have not yet been created.
 func (db *LazyDB) getFidListByType(typ valueType) []uint32 {
-	return nil
+	v, ok := db.fidsMap.Get(typ)
+	if !ok {
+		newFids := make([]uint32, 0)
+		db.fidsMap.Set(typ, newFids)
+		return newFids
+	}
+	fids, _ := v.([]uint32)
+	return fids
 }
