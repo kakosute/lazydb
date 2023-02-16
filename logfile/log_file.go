@@ -1,6 +1,9 @@
 package logfile
 
-import "lazydb/iocontroller"
+import (
+	"lazydb/iocontroller"
+	"sync"
+)
 
 // IOType represents different types of file io: FileIO(standard file io).
 type IOType uint8
@@ -16,6 +19,7 @@ type LogFile struct {
 	Fid          uint32
 	Offset       int64
 	IoController iocontroller.IOController
+	RWLock       sync.RWMutex
 }
 
 // Open opens an existing or create a new log file.
