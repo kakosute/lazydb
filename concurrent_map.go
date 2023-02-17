@@ -56,6 +56,12 @@ func NewConcurrentMap(mapShardCount int) *ConcurrentMap[string] {
 	return &cm
 }
 
+// Creates a new concurrent map.
+func NewWithCustomShardingFunction[K comparable](sharding func(key K) uint32, mapShardCount int) *ConcurrentMap[K] {
+	cm := newConcurrentMap[K](mapShardCount, sharding)
+	return &cm
+}
+
 func newConcurrentMap[K comparable](mapShardCount int, sharding func(key K) uint32) ConcurrentMap[K] {
 	// suggest powers of 2
 	if mapShardCount < defaultShardCount {
