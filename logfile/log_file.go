@@ -26,6 +26,11 @@ const (
 	Strs FType = iota
 )
 
+var (
+	//  convert string in filename to FType
+	FileTypesMap = map[string]FType{}
+)
+
 // LogFile is an abstraction of a disk file, entry`s read and write will go through it.
 type LogFile struct {
 	Fid          uint32
