@@ -87,6 +87,10 @@ func fnv32(key string) uint32 {
 	return h.Sum32()
 }
 
+func simpleSharding(key uint32) uint32 {
+	return key
+}
+
 // GetShard returns the MapShard under the given key.
 func (cm *ConcurrentMap[K]) GetShard(key K) *MapShard[K] {
 	return cm.shards[uint(cm.sharding(key))%uint(cm.shardCount)]

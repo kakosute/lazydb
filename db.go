@@ -115,7 +115,7 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 		}
 
 		newFid := curLogFile.Fid + 1
-		newCurLogFile, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
+		newCurLogFile, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
 		if err != nil {
 			curLogFile.Mu.RUnlock()
 			return nil, err
@@ -208,7 +208,7 @@ func (db *LazyDB) getCurLogFile(typ valueType) *logfile.LogFile {
 	v, ok := db.curLogFile.Get(typ)
 	// create a new LogFile if not exist
 	if !ok {
-		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
+		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
 		if err != nil {
 			log.Fatalf("Create log file error: %v", err)
 			return nil
