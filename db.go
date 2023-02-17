@@ -4,8 +4,11 @@ import (
 	"errors"
 	"lazydb/logfile"
 	"log"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
-	"sync/atomic"
 )
 
 type (
@@ -39,6 +42,10 @@ type (
 
 const (
 	valueTypeString valueType = iota
+	valueTypeList
+	valueTypeHash
+	valueTypeSet
+	valueTypeZSet
 )
 
 var (
@@ -92,10 +99,6 @@ func (db *LazyDB) readLogEntry(typ valueType, fid uint32, offset int64) (*logfil
 // writeLogEntry writes entry into active log file and returns position.
 // Return nil and error if writing fails.
 func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValuePos, error) {
-	if err := db.initLogFiles(typ); err != nil {
-		return nil, err
-	}
-
 	curLogFile := db.getCurLogFile(typ)
 	if curLogFile == nil {
 		return nil, ErrOpenLogFile
@@ -134,7 +137,7 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 
 	curLogFile.Mu.Lock()
 	defer curLogFile.Mu.Unlock()
-	writeAt := atomic.LoadInt64(&curLogFile.Offset)
+	writeAt := curLogFile.Offset
 	if err := curLogFile.Write(entBuf); err != nil {
 		return nil, err
 	}
@@ -146,12 +149,56 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 	return valPos, nil
 }
 
-func (db *LazyDB) initLogFiles(typ valueType) error {
-	return nil
-}
-
 // buildLogFiles Recover archivedLogFile from disk.
 func (db *LazyDB) buildLogFiles() error {
+	fileInfos, err := os.ReadDir(db.cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	for _, file := range fileInfos {
+		if !strings.HasPrefix(file.Name(), logfile.FilePrefix) {
+			continue
+		}
+		splitInfo := strings.Split(file.Name(), ".")
+		if len(splitInfo) != 3 {
+			log.Printf("Invalid log file name: %s", file.Name())
+			continue
+		}
+		typ := valueType(logfile.FileTypesMap[splitInfo[1]])
+		fid, err := strconv.Atoi(splitInfo[2])
+		if err != nil {
+			log.Printf("Invalid log file name: %s", file.Name())
+			continue
+		}
+		fids := db.getFidListByType(typ)
+		fids = append(fids, uint32(fid))
+		db.fidsMap.Set(typ, fids)
+	}
+
+	for typ := valueTypeString; typ < valueTypeZSet; typ++ {
+		fids := db.getFidListByType(typ)
+		// newly created log file has bigger fid
+		sort.Slice(fids, func(i, j int) bool {
+			return fids[i] < fids[j]
+		})
+		archivedLogFiles := NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		for i, fid := range fids {
+			lf, err := logfile.Open(db.cfg.DBPath, fid, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
+			if err != nil {
+				log.Fatalf("Open Log File error:%v. Type: %v, Fid: %v,", err, typ, fid)
+				continue
+			}
+
+			// latest one is the active log file
+			if i == len(fids)-1 {
+				db.curLogFile.Set(typ, lf)
+			} else {
+				archivedLogFiles.Set(fid, lf)
+			}
+		}
+		db.archivedLogFile[typ] = archivedLogFiles
+	}
+
 	return nil
 }
 
@@ -159,9 +206,8 @@ func (db *LazyDB) buildLogFiles() error {
 // Initiate a new LogFile if curLogFile of typ is empty
 func (db *LazyDB) getCurLogFile(typ valueType) *logfile.LogFile {
 	v, ok := db.curLogFile.Get(typ)
-	// create a new LogFile
+	// create a new LogFile if not exist
 	if !ok {
-		//todo param typ
 		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
 		if err != nil {
 			log.Fatalf("Create log file error: %v", err)
@@ -178,7 +224,11 @@ func (db *LazyDB) getCurLogFile(typ valueType) *logfile.LogFile {
 // getArchivedLogFile Util function for get archivedLogFile from ConcurrentMap.
 // Returns nil when target log file does not exist
 func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *logfile.LogFile {
-	lfs := db.archivedLogFile[typ]
+	lfs, ok := db.archivedLogFile[typ]
+	if !ok {
+		db.archivedLogFile[typ] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		return nil
+	}
 	v, ok := lfs.Get(fid)
 	if !ok {
 		return nil
