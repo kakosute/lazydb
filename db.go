@@ -183,7 +183,7 @@ func (db *LazyDB) buildLogFiles() error {
 		})
 		archivedLogFiles := NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
 		for i, fid := range fids {
-			lf, err := logfile.Open(db.cfg.DBPath, fid, db.cfg.MaxLogFileSize, uint8(typ), db.cfg.IOType)
+			lf, err := logfile.Open(db.cfg.DBPath, fid, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
 			if err != nil {
 				log.Fatalf("Open Log File error:%v. Type: %v, Fid: %v,", err, typ, fid)
 				continue

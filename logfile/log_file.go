@@ -37,7 +37,9 @@ const (
 
 var (
 	//  convert string in filename to FType
-	FileTypesMap = map[string]FType{}
+	FileTypesMap = map[string]FType{
+		"strs": Strs,
+	}
 )
 
 // LogFile is an abstraction of a disk file, entry`s read and write will go through it.
