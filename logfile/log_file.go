@@ -14,6 +14,18 @@ const (
 	// can add more type when needed
 )
 
+const (
+	// FilePrefix log file prefix. Full name of a file for example file of strings is like: "path/log.strs.00000001".
+	FilePrefix = "log."
+)
+
+// FileType represents different types of log file: wal and value log.
+type FType uint8
+
+const (
+	Strs FType = iota
+)
+
 // LogFile is an abstraction of a disk file, entry`s read and write will go through it.
 type LogFile struct {
 	Fid          uint32
