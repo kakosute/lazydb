@@ -13,6 +13,7 @@ const (
 
 type DBConfig struct {
 	DBPath               string        // Directory path for storing log files on disk.
+	HashIndexShardCount  int64         // default 32
 	MaxLogFileSize       int64         // Max capacity of a log file.
 	LogFileMergeInterval time.Duration // Max time interval for merging log files.
 
@@ -24,6 +25,7 @@ type DBConfig struct {
 func DefaultDBConfig(path string) *DBConfig {
 	return &DBConfig{
 		DBPath:               path,
+		HashIndexShardCount:  defaultShardCount,
 		MaxLogFileSize:       defaultMaxLogFileSize,
 		LogFileMergeInterval: defaultLogFileMergeInterval,
 		IOType:               defaultIOType,
