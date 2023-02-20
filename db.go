@@ -3,6 +3,7 @@ package lazydb
 import (
 	"errors"
 	"lazydb/logfile"
+	"lazydb/util"
 	"log"
 	"os"
 	"sort"
@@ -64,15 +65,64 @@ var (
 	ErrOpenLogFile     = errors.New("open Log file error")
 )
 
-func Open() (*LazyDB, error) {
-	return nil, nil
+func Open(cfg DBConfig) (*LazyDB, error) {
+	// create the dir path if not exist
+	if !util.PathExist(cfg.DBPath) {
+		if err := os.MkdirAll(cfg.DBPath, os.ModePerm); err != nil {
+			log.Fatalf("Create db directory in %s error: %v", cfg.DBPath, err)
+			return nil, err
+		}
+	}
+
+	db := &LazyDB{
+		cfg:              &cfg,
+		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		fidsMap:          make(map[valueType]*MutexFids),
+		activeLogFileMap: make(map[valueType]*MutexLogFile),
+		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+	}
+
+	if err := db.buildLogFiles(); err != nil {
+		log.Fatalf("Build Log Files error: %v", err)
+		return nil, err
+	}
+
+	// todo: add methods for building index
+
+	return db, nil
 }
 
+// Sync flush the buffer into stable storage.
 func (db *LazyDB) Sync() error {
+	for _, mlf := range db.activeLogFileMap {
+		mlf.mu.Lock()
+		if err := mlf.lf.Sync(); err != nil {
+			return err
+		}
+		mlf.mu.Unlock()
+	}
 	return nil
 }
 
+// Close db
 func (db *LazyDB) Close() error {
+	for _, mlf := range db.activeLogFileMap {
+		mlf.lf.Close()
+	}
+	for typ, mutexFids := range db.fidsMap {
+		for _, fid := range mutexFids.fids {
+			mlf := db.getArchivedLogFile(typ, fid)
+			if mlf == nil {
+				continue
+			}
+			mlf.lf.Sync()
+			mlf.lf.Close()
+		}
+	}
+	db.index = nil
+	db.fidsMap = nil
+	db.activeLogFileMap = nil
+	db.archivedLogFile = nil
 	return nil
 }
 
