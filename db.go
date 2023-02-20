@@ -59,8 +59,9 @@ const (
 )
 
 var (
-	ErrLogFileNotExist = errors.New("Log file is not exist")
-	ErrOpenLogFile     = errors.New("Open Log file error")
+	ErrKeyNotFound     = errors.New("key not found")
+	ErrLogFileNotExist = errors.New("log file is not exist")
+	ErrOpenLogFile     = errors.New("open Log file error")
 )
 
 func Open() (*LazyDB, error) {
@@ -77,10 +78,6 @@ func (db *LazyDB) Close() error {
 
 func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
 	return nil
-}
-
-func (db *LazyDB) getValue(key []byte) (*Value, error) {
-	return nil, nil
 }
 
 // readLogEntry Reads entry from log files by fid and offset.
