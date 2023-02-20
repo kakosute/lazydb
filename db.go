@@ -13,12 +13,22 @@ import (
 
 type (
 	LazyDB struct {
-		cfg             *DBConfig
-		index           *ConcurrentMap[string]
-		fidsMap         *ConcurrentMap[valueType]            // [valueType][]uint32
-		curLogFile      *ConcurrentMap[valueType]            // [valueType]*LogFile
-		archivedLogFile map[valueType]*ConcurrentMap[uint32] // [uint32]*LogFile
-		mu              sync.RWMutex
+		cfg              *DBConfig
+		index            *ConcurrentMap[string]
+		fidsMap          map[valueType]*MutexFids
+		activeLogFileMap map[valueType]*MutexLogFile
+		archivedLogFile  map[valueType]*ConcurrentMap[uint32] // [uint32]*MutexLogFile
+		mu               sync.RWMutex
+	}
+
+	MutexFids struct {
+		fids []uint32
+		mu   sync.RWMutex
+	}
+
+	MutexLogFile struct {
+		lf *logfile.LogFile
+		mu sync.RWMutex
 	}
 
 	valueType uint8
@@ -77,21 +87,22 @@ func (db *LazyDB) getValue(key []byte) (*Value, error) {
 // Return error if entry does not exist.
 func (db *LazyDB) readLogEntry(typ valueType, fid uint32, offset int64) (*logfile.LogEntry, error) {
 	var lf *logfile.LogFile
+	activelf := db.activeLogFileMap[typ]
 
-	curLogFile := db.getCurLogFile(typ)
-	if curLogFile == nil {
+	lf = activelf.lf
+	if lf == nil {
 		return nil, ErrOpenLogFile
 	}
 
-	if curLogFile.Fid == fid {
-		lf = curLogFile
-	} else {
-		lf = db.getArchivedLogFile(typ, fid)
-		if lf == nil {
+	if lf.Fid != fid {
+		mlf := db.getArchivedLogFile(typ, fid)
+		if mlf == nil || mlf.lf == nil {
 			return nil, ErrLogFileNotExist
 		}
+		lf = mlf.lf
 	}
-
+	lf.Mu.RLock()
+	defer lf.Mu.RUnlock()
 	entry, _, err := lf.ReadLogEntry(offset)
 	return entry, err
 }
@@ -99,50 +110,45 @@ func (db *LazyDB) readLogEntry(typ valueType, fid uint32, offset int64) (*logfil
 // writeLogEntry writes entry into active log file and returns position.
 // Return nil and error if writing fails.
 func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValuePos, error) {
-	curLogFile := db.getCurLogFile(typ)
-	if curLogFile == nil {
-		return nil, ErrOpenLogFile
-	}
+	activeLogFile := db.activeLogFileMap[typ]
+	activeLogFile.mu.Lock()
+	defer activeLogFile.mu.Unlock()
 
+	lf := activeLogFile.lf
 	entBuf, entSize := logfile.EncodeEntry(entry)
 
-	curLogFile.Mu.RLock()
 	// maxsize exceeded
-	if curLogFile.Offset+int64(entSize) > db.cfg.MaxLogFileSize {
-		if err := curLogFile.Sync(); err != nil {
-			curLogFile.Mu.RUnlock()
+	if lf.Offset+int64(entSize) > db.cfg.MaxLogFileSize {
+		if err := lf.Sync(); err != nil {
 			return nil, err
 		}
 
-		newFid := curLogFile.Fid + 1
-		newCurLogFile, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
+		newFid := lf.Fid + 1
+		newActiveLF, err := logfile.Open(db.cfg.DBPath, newFid, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
 		if err != nil {
-			curLogFile.Mu.RUnlock()
 			return nil, err
 		}
 
-		// move curLogFile to archive
-		db.archivedLogFile[typ].Set(newFid, newCurLogFile)
+		// move activeLogFile to archive
+		db.archivedLogFile[typ].Set(newFid, &MutexLogFile{lf: newActiveLF})
 
 		// insert new fid
-		fidList := db.getFidListByType(typ)
-		fidList = append(fidList, newFid)
-		db.fidsMap.Set(typ, fidList)
+		fids := db.fidsMap[typ]
+		fids.mu.Lock()
+		fids.fids = append(fids.fids, newFid)
+		fids.mu.Unlock()
 
-		// update curLogFile
-		db.curLogFile.Set(typ, newCurLogFile)
-		curLogFile.Mu.RUnlock()
-		curLogFile = newCurLogFile
+		// update activeLogFile
+		activeLogFile.lf = newActiveLF
 	}
 
-	curLogFile.Mu.Lock()
-	defer curLogFile.Mu.Unlock()
-	writeAt := curLogFile.Offset
-	if err := curLogFile.Write(entBuf); err != nil {
+	lf = activeLogFile.lf
+	writeAt := lf.Offset
+	if err := lf.Write(entBuf); err != nil {
 		return nil, err
 	}
 	valPos := &ValuePos{
-		fid:       curLogFile.Fid,
+		fid:       lf.Fid,
 		offset:    writeAt,
 		entrySize: entSize,
 	}
@@ -150,6 +156,7 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 }
 
 // buildLogFiles Recover archivedLogFile from disk.
+// Only run once when program start running.
 func (db *LazyDB) buildLogFiles() error {
 	fileInfos, err := os.ReadDir(db.cfg.DBPath)
 	if err != nil {
@@ -170,13 +177,12 @@ func (db *LazyDB) buildLogFiles() error {
 			log.Printf("Invalid log file name: %s", file.Name())
 			continue
 		}
-		fids := db.getFidListByType(typ)
-		fids = append(fids, uint32(fid))
-		db.fidsMap.Set(typ, fids)
+		fids := db.fidsMap[typ]
+		fids.fids = append(fids.fids, uint32(fid))
 	}
 
 	for typ := valueTypeString; typ < valueTypeZSet; typ++ {
-		fids := db.getFidListByType(typ)
+		fids := db.fidsMap[typ].fids
 		// newly created log file has bigger fid
 		sort.Slice(fids, func(i, j int) bool {
 			return fids[i] < fids[j]
@@ -191,9 +197,12 @@ func (db *LazyDB) buildLogFiles() error {
 
 			// latest one is the active log file
 			if i == len(fids)-1 {
-				db.curLogFile.Set(typ, lf)
+				activeMutexLogFile := db.activeLogFileMap[typ]
+				activeMutexLogFile.mu.Lock()
+				activeMutexLogFile.lf = lf
+				activeMutexLogFile.mu.Unlock()
 			} else {
-				archivedLogFiles.Set(fid, lf)
+				archivedLogFiles.Set(fid, &MutexLogFile{lf: lf})
 			}
 		}
 		db.archivedLogFile[typ] = archivedLogFiles
@@ -202,28 +211,9 @@ func (db *LazyDB) buildLogFiles() error {
 	return nil
 }
 
-// getCurLogFile Util function for get curLogFile from ConcurrentMap.
-// Initiate a new LogFile if curLogFile of typ is empty
-func (db *LazyDB) getCurLogFile(typ valueType) *logfile.LogFile {
-	v, ok := db.curLogFile.Get(typ)
-	// create a new LogFile if not exist
-	if !ok {
-		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
-		if err != nil {
-			log.Fatalf("Create log file error: %v", err)
-			return nil
-		}
-
-		db.curLogFile.Set(typ, lf)
-		return lf
-	}
-	lf, _ := v.(*logfile.LogFile)
-	return lf
-}
-
 // getArchivedLogFile Util function for get archivedLogFile from ConcurrentMap.
 // Returns nil when target log file does not exist
-func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *logfile.LogFile {
+func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *MutexLogFile {
 	lfs, ok := db.archivedLogFile[typ]
 	if !ok {
 		db.archivedLogFile[typ] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
@@ -233,19 +223,6 @@ func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *logfile.LogFile
 	if !ok {
 		return nil
 	}
-	lf := v.(*logfile.LogFile)
+	lf := v.(*MutexLogFile)
 	return lf
-}
-
-// getFidListByType returns a slice of fid by valueType
-// It initializes an empty slice if fid list have not yet been created.
-func (db *LazyDB) getFidListByType(typ valueType) []uint32 {
-	v, ok := db.fidsMap.Get(typ)
-	if !ok {
-		newFids := make([]uint32, 0)
-		db.fidsMap.Set(typ, newFids)
-		return newFids
-	}
-	fids, _ := v.([]uint32)
-	return fids
 }
