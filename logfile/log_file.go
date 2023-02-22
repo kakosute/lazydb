@@ -3,7 +3,6 @@ package logfile
 import (
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"lazydb/iocontroller"
 	"path/filepath"
 	"sync"
@@ -102,7 +101,7 @@ func (lf *LogFile) ReadLogEntry(offset int64) (*LogEntry, int, error) {
 		le.Value = kvBuf[kSize:]
 	}
 	// check whether the crc is correct
-	if crc := getEntryCrc(le, headerBuf[crc32.Size:size]); crc != le.crc {
+	if crc := getEntryCrc(headerBuf[:size], le); crc != le.crc {
 		return nil, 0, errors.New("logfile: logEntry crc isn't correct")
 	}
 	return le, entrySize, nil
