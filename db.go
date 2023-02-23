@@ -57,6 +57,8 @@ const (
 	valueTypeHash
 	valueTypeSet
 	valueTypeZSet
+
+	logFileTypeNum = 5
 )
 
 var (
@@ -87,7 +89,10 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 		return nil, err
 	}
 
-	// TODO: add methods for building index
+	if err := db.buildIndexFromLogFiles(); err != nil {
+		log.Fatalf("Build Index From Log Files error: %v", err)
+		return nil, err
+	}
 
 	return db, nil
 }

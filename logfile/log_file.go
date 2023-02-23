@@ -44,7 +44,7 @@ var (
 // LogFile is an abstraction of a disk file, entry`s read and write will go through it.
 type LogFile struct {
 	Fid          uint32
-	Offset       int64
+	Offset       int64 // WriteAt
 	IoController iocontroller.IOController
 	Mu           sync.RWMutex
 }
