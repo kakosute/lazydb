@@ -87,7 +87,7 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 		return nil, err
 	}
 
-	// todo: add methods for building index
+	// TODO: add methods for building index
 
 	return db, nil
 }
