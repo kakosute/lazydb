@@ -21,7 +21,7 @@ const MaxHeaderSize = 25
 type LogEntry struct {
 	crc      uint32 // crc32 --check sum
 	ExpireAt int64  // expire time
-	status   Status // delete or list meta
+	Stat     Status // delete or list meta
 	kSize    uint32 // key size
 	vSize    uint32 // value size
 	Key      []byte // key

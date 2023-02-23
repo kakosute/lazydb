@@ -44,8 +44,7 @@ func (db *LazyDB) Delete(key []byte) error {
 	shard := db.index.GetShardByWriting(util.ByteToString(key))
 	defer shard.Unlock()
 
-	// TODO: export status!!!
-	entry := &logfile.LogEntry{Key: key}
+	entry := &logfile.LogEntry{Key: key, Stat: logfile.SDelete}
 	_, err := db.writeLogEntry(valueTypeString, entry)
 	if err != nil {
 		return err
