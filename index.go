@@ -1,7 +1,11 @@
 package lazydb
 
+import (
+	"lazydb/util"
+)
+
 func (db *LazyDB) getValue(key []byte, typ valueType) ([]byte, error) {
-	rawValue, ok := db.index.Get(string(key))
+	rawValue, ok := db.index.Get(util.ByteToString(key))
 	if !ok {
 		return nil, ErrKeyNotFound
 

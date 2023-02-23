@@ -22,10 +22,10 @@ func TestEncodeEntry(t *testing.T) {
 			"no_content", args{&LogEntry{}}, []byte{28, 223, 68, 33, 0, 0, 0, 0}, 8,
 		},
 		{
-			"expiredAt_key_value", args{&LogEntry{ExpiredAt: 1676969769, status: SListMeta, Key: []byte("a"), Value: []byte("abc")}}, []byte{111, 64, 3, 225, 2, 210, 156, 164, 191, 12, 2, 6, 97, 97, 98, 99}, 16,
+			"expiredAt_key_value", args{&LogEntry{ExpiredAt: 1676969769, Stat: SListMeta, Key: []byte("a"), Value: []byte("abc")}}, []byte{111, 64, 3, 225, 2, 210, 156, 164, 191, 12, 2, 6, 97, 97, 98, 99}, 16,
 		},
 		{
-			"delete", args{&LogEntry{status: SDelete}}, []byte{121, 184, 248, 153, 1, 0, 0, 0}, 8,
+			"delete", args{&LogEntry{Stat: SDelete}}, []byte{121, 184, 248, 153, 1, 0, 0, 0}, 8,
 		},
 	}
 	for _, tt := range tests {
@@ -61,7 +61,7 @@ func Test_decodeHeader(t *testing.T) {
 			"no_content", args{buf: []byte{105, 223, 34, 101, 0, 0, 0, 0}}, &LogEntry{crc: 1696784233}, 8,
 		},
 		{
-			"expiredAt", args{buf: []byte{85, 205, 109, 118, 2, 210, 156, 164, 191, 12, 2, 6}}, &LogEntry{crc: 1986907477, ExpiredAt: 1676969769, status: SListMeta, kSize: 1, vSize: 3}, 12,
+			"expiredAt", args{buf: []byte{85, 205, 109, 118, 2, 210, 156, 164, 191, 12, 2, 6}}, &LogEntry{crc: 1986907477, ExpiredAt: 1676969769, Stat: SListMeta, kSize: 1, vSize: 3}, 12,
 		},
 	}
 	for _, tt := range tests {

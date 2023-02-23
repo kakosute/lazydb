@@ -17,15 +17,15 @@ const (
 
 // MaxHeaderSize max entry header size.
 // 4    +    1    +    10    +    5    +    5   =   25
-// crc     status   ExpireAt    kSize     vSize
+// crc     status   ExpiredAt    kSize     vSize
 // (refer to binary.MaxVarintLen32 and binary.MaxVarintLen64)
 const MaxHeaderSize = 25
 
 // LogEntry is the data will be appended in log file.
 type LogEntry struct {
 	crc       uint32 // crc32 --check sum
-	status    Status // delete or list meta
 	ExpiredAt int64  // expire time
+	Stat      Status // delete or list meta
 	kSize     uint32 // key size
 	vSize     uint32 // value size
 	Key       []byte // key
@@ -39,11 +39,11 @@ func EncodeEntry(le *LogEntry) ([]byte, int) {
 	}
 	var size = MaxHeaderSize
 	buf := make([]byte, size)
-	buf[4] = byte(le.status)
+	buf[4] = byte(le.Stat)
 
 	offset := 5
-	expireAtByte := binary.PutVarint(buf[offset:], le.ExpiredAt)
-	offset += expireAtByte
+	expiredAtByte := binary.PutVarint(buf[offset:], le.ExpiredAt)
+	offset += expiredAtByte
 	kSizeByte := binary.PutVarint(buf[offset:], int64(len(le.Key)))
 	offset += kSizeByte
 	vSizeByte := binary.PutVarint(buf[offset:], int64(len(le.Value)))
@@ -68,11 +68,11 @@ func decodeHeader(buf []byte) (*LogEntry, int) {
 	}
 	le := &LogEntry{}
 	le.crc = binary.LittleEndian.Uint32(buf[0:4])
-	le.status = Status(buf[4])
+	le.Stat = Status(buf[4])
 
 	offset := 5
-	expireAt, size := binary.Varint(buf[offset:])
-	le.ExpiredAt = expireAt
+	expiredAt, size := binary.Varint(buf[offset:])
+	le.ExpiredAt = expiredAt
 	offset += size
 	kSize, size := binary.Varint(buf[offset:])
 	le.kSize = uint32(kSize)
