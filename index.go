@@ -40,8 +40,11 @@ func (db *LazyDB) buildIndexFromLogFiles() error {
 			if i == len(fids)-1 {
 				logFile = db.activeLogFileMap[typ].lf
 			} else {
-				lf, _ := db.archivedLogFile[typ].Get(fid)
-				logFile = lf.(*logfile.LogFile)
+				mlf := db.getArchivedLogFile(typ, fid)
+				if mlf == nil {
+					log.Fatalf("log file is nil, failed to open db")
+				}
+				logFile = mlf.lf
 			}
 			if logFile == nil {
 				log.Fatalf("log file is nil, failed to open db")

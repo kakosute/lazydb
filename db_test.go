@@ -34,6 +34,25 @@ func TestLazyDB_Merge(t *testing.T) {
 }
 
 func TestLazyDB_ReadLogEntry(t *testing.T) {
+	wd, _ := os.Getwd()
+	path := filepath.Join(wd, "tmp")
+	cfg := DefaultDBConfig(path)
+	cfg.MaxLogFileSize = 150 // set max file size to 120B, only contain 2 entry in 1 file
+	db, err := Open(cfg)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+
+	// set up initial data
+	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
+	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32()}
+	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
+	db.writeLogEntry(valueTypeString, entry1)
+	db.writeLogEntry(valueTypeString, entry2)
+	db.writeLogEntry(valueTypeString, entry3)
+
+	type arg{
+
+	}
 }
 
 func TestLazyDB_WriteLogEntry(t *testing.T) {
