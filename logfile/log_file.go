@@ -23,10 +23,6 @@ const (
 	FilePrefix = "log."
 )
 
-var FTypeToString = map[FType]string{
-	Strs: "log.strs.",
-}
-
 // FileType represents different types of log file: wal and value log.
 type FType uint8
 
@@ -38,6 +34,9 @@ var (
 	//  convert string in filename to FType
 	FileTypesMap = map[string]FType{
 		"strs": Strs,
+	}
+	FileNamesMap = map[FType]string{
+		Strs: "log.strs.",
 	}
 )
 
@@ -55,10 +54,10 @@ func Open(path string, fid uint32, fsize int64, ftype FType, ioType IOType) (*Lo
 	if fsize <= 0 {
 		return nil, errors.New("logfile: illegal file size")
 	}
-	if _, ok := FTypeToString[ftype]; !ok {
+	if _, ok := FileNamesMap[ftype]; !ok {
 		return nil, errors.New("logfile: file type is not supported")
 	}
-	fileName := filepath.Join(path, FTypeToString[ftype]+fmt.Sprintf("%08d", fid))
+	fileName := filepath.Join(path, FileNamesMap[ftype]+fmt.Sprintf("%08d", fid))
 	lf := &LogFile{Fid: fid}
 	var controller iocontroller.IOController
 	var err error
