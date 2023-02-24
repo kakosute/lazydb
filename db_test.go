@@ -42,7 +42,7 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 	wd, _ := os.Getwd()
 	path := filepath.Join(wd, "tmp")
 	cfg := DefaultDBConfig(path)
-	cfg.MaxLogFileSize = 150 // set max file size to 120B, only contain 2 entry in 1 file
+	cfg.MaxLogFileSize = 150 // set max file size to 150B, only contain 2 entry in 1 file
 	db, err := Open(cfg)
 	defer destroyDB(db)
 	assert.Nil(t, err)
@@ -111,7 +111,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 	wd, _ := os.Getwd()
 	path := filepath.Join(wd, "tmp")
 	cfg := DefaultDBConfig(path)
-	cfg.MaxLogFileSize = 150 // set max file size to 120B, only contain 2 entry in 1 file
+	cfg.MaxLogFileSize = 150 // set max file size to 150B, only contain 2 entry in 1 file
 	db, err := Open(cfg)
 	defer destroyDB(db)
 	assert.Nil(t, err)
@@ -206,14 +206,12 @@ func destroyDB(db *LazyDB) {
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
+// GetKey Generate a 32Bytes key
 func GetKey(n int) []byte {
 	return []byte("kvstore-bench-key------" + fmt.Sprintf("%09d", n))
 }
 
-func GetValue16() []byte {
-	return GetValue(16)
-}
-
+// GetValue32 Generates a 32Bytes value
 func GetValue32() []byte {
 	return GetValue(32)
 }
