@@ -2,5 +2,6 @@
 .fleet/
 .idea/
 .vscode/
-# For test output
+# For local test
 tmp/
+testLogFiles/

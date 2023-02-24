@@ -119,7 +119,7 @@ func (db *LazyDB) Close() error {
 	for _, mlf := range db.activeLogFileMap {
 		err := mlf.lf.Close()
 		if err != nil {
-			log.Fatalf("Close file error: %v", err)
+			log.Fatalf("Close log file err: %v", err)
 		}
 	}
 	for typ, mutexFids := range db.fidsMap {
@@ -131,7 +131,7 @@ func (db *LazyDB) Close() error {
 			mlf.lf.Sync()
 			err := mlf.lf.Close()
 			if err != nil {
-				log.Fatalf("Close file error: %v", err)
+				log.Fatalf("Close log file err: %v", err)
 			}
 		}
 	}
@@ -267,15 +267,11 @@ func (db *LazyDB) buildLogFiles() error {
 
 			// latest one is the active log file
 			if i == len(fids)-1 {
-				activeMutexLogFile := db.getActiveLogFile(typ)
-				activeMutexLogFile.mu.Lock()
-				activeMutexLogFile.lf = lf
-				activeMutexLogFile.mu.Unlock()
+				db.activeLogFileMap[typ] = &MutexLogFile{lf: lf}
 			} else {
 				archivedLogFiles.Set(fid, &MutexLogFile{lf: lf})
 			}
 		}
-		db.archivedLogFile[typ] = archivedLogFiles
 	}
 	for typ := 0; typ < logFileTypeNum; typ++ {
 		build(valueType(typ))
