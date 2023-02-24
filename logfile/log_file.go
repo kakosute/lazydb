@@ -12,6 +12,10 @@ import (
 // IOType represents different types of file io: FileIO(standard file io).
 type IOType uint8
 
+var (
+	ErrLogEndOfFile = errors.New("logfile: end of logEntry file")
+)
+
 const (
 	// FileIO standard file io.
 	FileIO IOType = iota
@@ -84,7 +88,7 @@ func (lf *LogFile) ReadLogEntry(offset int64) (*LogEntry, int, error) {
 	}
 	le, size := decodeHeader(headerBuf)
 	if le.crc == 0 && le.kSize == 0 && le.vSize == 0 {
-		return nil, 0, errors.New("logfile: end of logEntry file")
+		return nil, 0, ErrLogEndOfFile
 	}
 	kSize, vSize := int(le.kSize), int(le.vSize)
 	var entrySize = size + kSize + vSize
