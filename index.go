@@ -1,7 +1,6 @@
 package lazydb
 
 import (
-	"io"
 	"lazydb/logfile"
 	"lazydb/util"
 	"log"
@@ -54,8 +53,7 @@ func (db *LazyDB) buildIndexFromLogFiles() error {
 			for {
 				entry, entSize, err := logFile.ReadLogEntry(offset)
 				if err != nil {
-					// TODO: add logfile.ErrEndOfEntry
-					if err == io.EOF {
+					if err == logfile.ErrLogEndOfFile {
 						break
 					}
 					log.Fatalf("read log entry from file err, failed to open db")
