@@ -84,6 +84,11 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
 	}
 
+	for i := 0; i < logFileTypeNum; i++ {
+		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
+		db.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+	}
+
 	if err := db.buildLogFiles(); err != nil {
 		log.Fatalf("Build Log Files error: %v", err)
 		return nil, err
@@ -112,7 +117,10 @@ func (db *LazyDB) Sync() error {
 // Close db
 func (db *LazyDB) Close() error {
 	for _, mlf := range db.activeLogFileMap {
-		mlf.lf.Close()
+		err := mlf.lf.Close()
+		if err != nil {
+			log.Fatalf("Close file error: %v", err)
+		}
 	}
 	for typ, mutexFids := range db.fidsMap {
 		for _, fid := range mutexFids.fids {
@@ -121,7 +129,10 @@ func (db *LazyDB) Close() error {
 				continue
 			}
 			mlf.lf.Sync()
-			mlf.lf.Close()
+			err := mlf.lf.Close()
+			if err != nil {
+				log.Fatalf("Close file error: %v", err)
+			}
 		}
 	}
 	db.index = nil
@@ -162,7 +173,10 @@ func (db *LazyDB) readLogEntry(typ valueType, fid uint32, offset int64) (*logfil
 // writeLogEntry writes entry into active log file and returns position.
 // Return nil and error if writing fails.
 func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValuePos, error) {
-	activeLogFile := db.activeLogFileMap[typ]
+	activeLogFile := db.getActiveLogFile(typ)
+	if activeLogFile == nil {
+		return nil, ErrOpenLogFile
+	}
 	activeLogFile.mu.Lock()
 	defer activeLogFile.mu.Unlock()
 
@@ -182,7 +196,7 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 		}
 
 		// move activeLogFile to archive
-		db.archivedLogFile[typ].Set(newFid, &MutexLogFile{lf: newActiveLF})
+		db.archivedLogFile[typ].Set(lf.Fid, &MutexLogFile{lf: lf})
 
 		// insert new fid
 		fids := db.fidsMap[typ]
@@ -233,13 +247,17 @@ func (db *LazyDB) buildLogFiles() error {
 		fids.fids = append(fids.fids, uint32(fid))
 	}
 
-	for typ := valueTypeString; typ < valueTypeZSet; typ++ {
-		fids := db.fidsMap[typ].fids
+	build := func(typ valueType) {
+		mutexFids := db.fidsMap[typ]
+		fids := mutexFids.fids
+		if len(fids) == 0 {
+			return
+		}
 		// newly created log file has bigger fid
 		sort.Slice(fids, func(i, j int) bool {
 			return fids[i] < fids[j]
 		})
-		archivedLogFiles := NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		archivedLogFiles := db.archivedLogFile[typ]
 		for i, fid := range fids {
 			lf, err := logfile.Open(db.cfg.DBPath, fid, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
 			if err != nil {
@@ -249,7 +267,7 @@ func (db *LazyDB) buildLogFiles() error {
 
 			// latest one is the active log file
 			if i == len(fids)-1 {
-				activeMutexLogFile := db.activeLogFileMap[typ]
+				activeMutexLogFile := db.getActiveLogFile(typ)
 				activeMutexLogFile.mu.Lock()
 				activeMutexLogFile.lf = lf
 				activeMutexLogFile.mu.Unlock()
@@ -259,22 +277,41 @@ func (db *LazyDB) buildLogFiles() error {
 		}
 		db.archivedLogFile[typ] = archivedLogFiles
 	}
-
+	for typ := 0; typ < logFileTypeNum; typ++ {
+		build(valueType(typ))
+	}
 	return nil
 }
 
 // getArchivedLogFile Util function for get archivedLogFile from ConcurrentMap.
 // Returns nil when target log file does not exist
 func (db *LazyDB) getArchivedLogFile(typ valueType, fid uint32) *MutexLogFile {
-	lfs, ok := db.archivedLogFile[typ]
-	if !ok {
-		db.archivedLogFile[typ] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
-		return nil
-	}
+	lfs := db.archivedLogFile[typ]
 	v, ok := lfs.Get(fid)
 	if !ok {
 		return nil
 	}
 	lf := v.(*MutexLogFile)
 	return lf
+}
+
+func (db *LazyDB) getActiveLogFile(typ valueType) *MutexLogFile {
+	mutexLf, ok := db.activeLogFileMap[typ]
+	if !ok {
+		lf, err := logfile.Open(db.cfg.DBPath, 1, db.cfg.MaxLogFileSize, logfile.FType(typ), db.cfg.IOType)
+		if err != nil {
+			log.Fatalf("Create New Log File error: %v", err)
+			return nil
+		}
+		newMutexLf := &MutexLogFile{lf: lf}
+		db.activeLogFileMap[typ] = newMutexLf
+
+		fids := db.fidsMap[typ]
+		fids.mu.Lock()
+		fids.fids = append(fids.fids, lf.Fid)
+		fids.mu.Unlock()
+
+		return newMutexLf
+	}
+	return mutexLf
 }

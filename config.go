@@ -22,8 +22,8 @@ type DBConfig struct {
 	IOType logfile.IOType
 }
 
-func DefaultDBConfig(path string) *DBConfig {
-	return &DBConfig{
+func DefaultDBConfig(path string) DBConfig {
+	return DBConfig{
 		DBPath:               path,
 		HashIndexShardCount:  defaultShardCount,
 		MaxLogFileSize:       defaultMaxLogFileSize,

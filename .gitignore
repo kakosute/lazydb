@@ -2,3 +2,5 @@
 .fleet/
 .idea/
 .vscode/
+# For test output
+tmp/
