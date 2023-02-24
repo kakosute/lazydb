@@ -90,6 +90,9 @@ func TestLogFile_ReadLogEntry(t *testing.T) {
 		{
 			"read-entry-6", fields{lf: lf}, args{offset: offsets[6]}, entries[6], len(vals[6]), false,
 		},
+		{
+			"end-of-file", fields{lf: lf}, args{offset: offsets[6] + int64(len(vals[6]))}, nil, 0, true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
