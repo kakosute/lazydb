@@ -2,6 +2,7 @@ package lazydb
 
 import (
 	"errors"
+	"io"
 	"lazydb/logfile"
 	"lazydb/util"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type (
@@ -142,7 +144,84 @@ func (db *LazyDB) Close() error {
 	return nil
 }
 
+func (db *LazyDB) mergeStr(fid uint32, offset int64, ent *logfile.LogEntry) error {
+	strKey := util.ByteToString(ent.Key)
+
+	shard := db.index.GetShardByWriting(strKey)
+	defer shard.Unlock()
+
+	indexVal, _ := shard.Get(strKey)
+	if indexVal == nil {
+		return nil
+	}
+
+	val, _ := indexVal.(*Value)
+	if val != nil && val.fid == fid && val.offset == offset {
+		// rewrite entry
+		valuePos, err := db.writeLogEntry(valueTypeString, ent)
+		if err != nil {
+			return err
+		}
+		// update index
+		shard.Set(strKey, Value{
+			value:     val.value,
+			vType:     valueTypeString,
+			fid:       valuePos.fid,
+			offset:    valuePos.offset,
+			entrySize: valuePos.entrySize,
+		})
+	}
+	return nil
+}
+
 func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
+	archivedFile := db.getArchivedLogFile(typ, targetFid)
+	if archivedFile == nil {
+		return nil
+	}
+
+	var offset int64
+	for {
+		ent, size, err := archivedFile.lf.ReadLogEntry(offset)
+		if err != nil {
+			if err == io.EOF || err == logfile.ErrLogEndOfFile {
+				break
+			}
+			return err
+		}
+		var off = offset
+		offset += int64(size)
+		if ent.Stat == logfile.SDelete {
+			continue
+		}
+		ts := time.Now().Unix()
+		if ent.ExpiredAt != 0 && ent.ExpiredAt <= ts {
+			continue
+		}
+		var mergeErr error
+		switch typ {
+		case valueTypeString:
+			mergeErr = db.mergeStr(archivedFile.lf.Fid, off, ent)
+		}
+		if mergeErr != nil {
+			return mergeErr
+		}
+	}
+
+	// delete older log file
+	archivedLogFiles := db.archivedLogFile[typ]
+	shard := archivedLogFiles.GetShardByWriting(targetFid)
+
+	val, _ := shard.Get(targetFid)
+	lf := val.(*logfile.LogFile)
+
+	_ = lf.Delete()         // close file and remove local file
+	shard.Remove(targetFid) // remove index from memory
+
+	shard.Unlock()
+
+	// TODO: clear discard state.
+
 	return nil
 }
 
