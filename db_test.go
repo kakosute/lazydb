@@ -40,6 +40,23 @@ func TestOpen(t *testing.T) {
 	defer destroyDB(db2)
 }
 
+func TestLazyDB_Close(t *testing.T) {
+	wd, _ := os.Getwd()
+	path := filepath.Join(wd, "tmp")
+	cfg := DefaultDBConfig(path)
+	db, err := Open(cfg)
+	assert.Nil(t, err)
+	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
+	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32(), ExpiredAt: time.Now().Unix()}
+	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
+	db.writeLogEntry(valueTypeString, entry1)
+	db.writeLogEntry(valueTypeString, entry2)
+	db.writeLogEntry(valueTypeString, entry3)
+	defer os.RemoveAll(db.cfg.DBPath)
+	err = db.Close()
+	assert.Nil(t, err)
+}
+
 func TestLazyDB_Merge(t *testing.T) {
 
 }
