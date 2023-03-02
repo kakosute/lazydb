@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"lazydb/logfile"
+	"lazydb/util"
 	"log"
 	"math/rand"
 	"os"
@@ -24,14 +25,19 @@ func TestOpen(t *testing.T) {
 	cfg := DefaultDBConfig(path)
 	db, err := Open(cfg)
 	assert.Nil(t, err)
+	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
+	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32(), ExpiredAt: time.Now().Unix()}
+	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
+	db.writeLogEntry(valueTypeString, entry1)
+	db.writeLogEntry(valueTypeString, entry2)
+	db.writeLogEntry(valueTypeString, entry3)
+	db.Close()
 	defer destroyDB(db)
 
 	// db directory with existing files
-	path = filepath.Join(wd, "testLogFiles", "open")
-	cfg = DefaultDBConfig(path)
-	db, err = Open(cfg)
+	db2, err := Open(cfg)
 	assert.Nil(t, err)
-	defer destroyDB(db)
+	defer destroyDB(db2)
 }
 
 func TestLazyDB_Merge(t *testing.T) {
@@ -101,9 +107,9 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 	for _, tt := range tests {
 		entry, err := db.readLogEntry(tt.arg.typ, tt.arg.fid, tt.arg.offset)
 		assert.Nil(t, err)
-		assert.Equal(t, entry.Key, tt.expectedKey)
-		assert.Equal(t, entry.Value, tt.expectedValue)
-		assert.Equal(t, entry.ExpiredAt, tt.expectedExpireAt)
+		assert.Equal(t, tt.expectedKey, entry.Key)
+		assert.Equal(t, tt.expectedValue, entry.Value)
+		assert.Equal(t, tt.expectedExpireAt, entry.ExpiredAt)
 	}
 }
 
@@ -111,7 +117,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 	wd, _ := os.Getwd()
 	path := filepath.Join(wd, "tmp")
 	cfg := DefaultDBConfig(path)
-	cfg.MaxLogFileSize = 150 // set max file size to 150B, only contain 2 entry in 1 file
+	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db, err := Open(cfg)
 	defer destroyDB(db)
 	assert.Nil(t, err)
@@ -138,7 +144,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 		},
 		{
 			args: args{
-				key:   GetKey(1),
+				key:   GetKey(2),
 				value: GetValue32(),
 			},
 			wantFid:       1,
@@ -147,7 +153,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 		},
 		{
 			args: args{
-				key:   GetKey(1),
+				key:   GetKey(3),
 				value: GetValue32(),
 			},
 			wantFid:       2,
@@ -159,17 +165,22 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 	for _, tt := range tests {
 		valPos, err := db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: tt.args.key, Value: tt.args.value})
 		assert.Nil(t, err)
-		assert.Equal(t, valPos.fid, tt.wantFid)
-		assert.Equal(t, valPos.offset, tt.wantOffset)
-		assert.Equal(t, valPos.entrySize, tt.wantEntrySize)
+		assert.Equal(t, tt.wantFid, valPos.fid)
+		assert.Equal(t, tt.wantOffset, valPos.offset)
+		assert.Equal(t, tt.wantEntrySize, valPos.entrySize)
 	}
 }
 
 func TestLazyDB_BuildLogFile(t *testing.T) {
+	// Create Two Log File for test, same logic as TestLazyDB_WriteLogEntry
 	wd, _ := os.Getwd()
-	path := filepath.Join(wd, "testLogFiles", "build_log_file")
+	path := filepath.Join(wd, "test_build_log_file")
+	if !util.PathExist(path) {
+		err := os.MkdirAll(path, os.ModePerm)
+		assert.Nil(t, err)
+	}
 	cfg := DefaultDBConfig(path)
-	cfg.MaxLogFileSize = 150 // set max file size to 120B, only contain 2 entry in 1 file
+	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db := &LazyDB{
 		cfg:              &cfg,
 		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
@@ -177,17 +188,39 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
 	}
-	defer destroyDB(db)
-
 	for i := 0; i < logFileTypeNum; i++ {
 		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
 		db.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
 	}
 
+	// test buildLogFiles with empty directory
 	err := db.buildLogFiles()
 	assert.Nil(t, err)
-	assert.Equal(t, db.getActiveLogFile(valueTypeString).lf.Fid, uint32(2))
-	assert.NotNil(t, db.getArchivedLogFile(valueTypeString, 1))
+	assert.Equal(t, uint32(1), db.getActiveLogFile(valueTypeString).lf.Fid)
+
+	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()})
+	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(2), Value: GetValue32()})
+	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()})
+	db.Close()
+
+	// test buildLogFiles with existing log files
+	newDB := &LazyDB{
+		cfg:              &cfg,
+		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		fidsMap:          make(map[valueType]*MutexFids),
+		activeLogFileMap: make(map[valueType]*MutexLogFile),
+		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+	}
+	for i := 0; i < logFileTypeNum; i++ {
+		newDB.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
+		newDB.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+	}
+	err = newDB.buildLogFiles()
+	defer destroyDB(newDB)
+
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(2), newDB.getActiveLogFile(valueTypeString).lf.Fid)
+	assert.NotNil(t, newDB.getArchivedLogFile(valueTypeString, 1))
 }
 
 func destroyDB(db *LazyDB) {
