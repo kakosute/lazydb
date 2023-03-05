@@ -1,6 +1,7 @@
 package lazydb
 
 import (
+	"io"
 	"lazydb/logfile"
 	"lazydb/util"
 	"log"
@@ -53,12 +54,12 @@ func (db *LazyDB) buildIndexFromLogFiles() error {
 			for {
 				entry, entSize, err := logFile.ReadLogEntry(offset)
 				if err != nil {
-					if err == logfile.ErrLogEndOfFile {
+					if err == io.EOF || err == logfile.ErrLogEndOfFile {
 						break
 					}
-					log.Fatalf("read log entry from file err, failed to open db")
+					log.Fatalf("read log entry from file err: %v, failed to open db", err)
 				}
-				vPos := &ValuePos{fid: fid, offset: offset}
+				vPos := &ValuePos{fid: fid, offset: offset, entrySize: entSize}
 				db.buildIndexByVType(typ, entry, vPos)
 				offset += int64(entSize)
 			}
@@ -84,8 +85,8 @@ func (db *LazyDB) getValue(key []byte, typ valueType) ([]byte, error) {
 		return nil, ErrKeyNotFound
 
 	}
-	val, _ := rawValue.(*Value)
-	if val == nil {
+	val, ok := rawValue.(Value)
+	if !ok {
 		return nil, ErrKeyNotFound
 	}
 
