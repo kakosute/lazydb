@@ -1,6 +1,7 @@
 package lazydb
 
 import (
+	"lazydb/ds"
 	"lazydb/logfile"
 	"lazydb/util"
 	"os"
@@ -23,16 +24,16 @@ func TestLazyDB_buildIndexFromLogFiles(t *testing.T) {
 	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db := &LazyDB{
 		cfg:              &cfg,
-		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
-		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
 	}
 	defer destroyDB(db)
 
 	for i := 0; i < logFileTypeNum; i++ {
 		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
-		db.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		db.archivedLogFile[valueType(i)] = ds.NewWithCustomShardingFunction[uint32](ds.DefaultShardCount, ds.SimpleSharding)
 	}
 
 	val1 := GetValue32()

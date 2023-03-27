@@ -3,7 +3,7 @@ package lazydb
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"lazydb/ds"
 	"lazydb/logfile"
 	"lazydb/util"
 	"log"
@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -200,14 +202,14 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db := &LazyDB{
 		cfg:              &cfg,
-		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
-		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
 	}
 	for i := 0; i < logFileTypeNum; i++ {
 		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
-		db.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		db.archivedLogFile[valueType(i)] = ds.NewWithCustomShardingFunction[uint32](ds.DefaultShardCount, ds.SimpleSharding)
 	}
 
 	// test buildLogFiles with empty directory
@@ -223,14 +225,14 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	// test buildLogFiles with existing log files
 	newDB := &LazyDB{
 		cfg:              &cfg,
-		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
-		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
 	}
 	for i := 0; i < logFileTypeNum; i++ {
 		newDB.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
-		newDB.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		newDB.archivedLogFile[valueType(i)] = ds.NewWithCustomShardingFunction[uint32](ds.DefaultShardCount, ds.SimpleSharding)
 	}
 	err = newDB.buildLogFiles()
 	defer destroyDB(newDB)

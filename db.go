@@ -3,6 +3,7 @@ package lazydb
 import (
 	"errors"
 	"io"
+	"lazydb/ds"
 	"lazydb/logfile"
 	"lazydb/util"
 	"log"
@@ -17,10 +18,10 @@ import (
 type (
 	LazyDB struct {
 		cfg              *DBConfig
-		index            *ConcurrentMap[string]
+		index            *ds.ConcurrentMap[string]
 		fidsMap          map[valueType]*MutexFids
 		activeLogFileMap map[valueType]*MutexLogFile
-		archivedLogFile  map[valueType]*ConcurrentMap[uint32] // [uint32]*MutexLogFile
+		archivedLogFile  map[valueType]*ds.ConcurrentMap[uint32] // [uint32]*MutexLogFile
 		mu               sync.RWMutex
 	}
 
@@ -80,15 +81,15 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 
 	db := &LazyDB{
 		cfg:              &cfg,
-		index:            NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
-		archivedLogFile:  make(map[valueType]*ConcurrentMap[uint32]),
+		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
 	}
 
 	for i := 0; i < logFileTypeNum; i++ {
 		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
-		db.archivedLogFile[valueType(i)] = NewWithCustomShardingFunction[uint32](defaultShardCount, simpleSharding)
+		db.archivedLogFile[valueType(i)] = ds.NewWithCustomShardingFunction[uint32](ds.DefaultShardCount, ds.SimpleSharding)
 	}
 
 	if err := db.buildLogFiles(); err != nil {

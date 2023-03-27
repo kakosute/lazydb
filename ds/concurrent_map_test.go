@@ -1,6 +1,7 @@
-package lazydb
+package ds
 
 import (
+	"lazydb"
 	"reflect"
 	"testing"
 )
@@ -21,11 +22,11 @@ func TestMapShard_Get(t *testing.T) {
 			name: "test1",
 			ms: &MapShard[string]{
 				simpleMap: map[string]any{
-					Name: "test1",
+					lazydb.Name: "test1",
 				},
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			valueWant: "test1",
 			flagWant:  true,
@@ -36,7 +37,7 @@ func TestMapShard_Get(t *testing.T) {
 				simpleMap: make(map[string]any),
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			valueWant: nil,
 			flagWant:  false,
@@ -72,7 +73,7 @@ func TestMapShard_Set(t *testing.T) {
 				simpleMap: make(map[string]any),
 			},
 			args: args[string]{
-				key:   Name,
+				key:   lazydb.Name,
 				value: "test1",
 			},
 		},
@@ -106,11 +107,11 @@ func TestMapShard_Has(t *testing.T) {
 			name: "test1",
 			ms: &MapShard[string]{
 				simpleMap: map[string]any{
-					Name: "test1",
+					lazydb.Name: "test1",
 				},
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			want: true,
 		},
@@ -120,7 +121,7 @@ func TestMapShard_Has(t *testing.T) {
 				simpleMap: make(map[string]any),
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			want: false,
 		},
@@ -148,11 +149,11 @@ func TestMapShard_Remove(t *testing.T) {
 			name: "test1",
 			ms: &MapShard[string]{
 				simpleMap: map[string]any{
-					Name: "test1",
+					lazydb.Name: "test1",
 				},
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 		},
 		{
@@ -161,7 +162,7 @@ func TestMapShard_Remove(t *testing.T) {
 				simpleMap: make(map[string]any),
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 		},
 	}
@@ -195,11 +196,11 @@ func TestMapShard_Pop(t *testing.T) {
 			name: "test1",
 			ms: &MapShard[string]{
 				simpleMap: map[string]any{
-					Name: "test1",
+					lazydb.Name: "test1",
 				},
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			valueWant: "test1",
 			flagWant:  true,
@@ -210,7 +211,7 @@ func TestMapShard_Pop(t *testing.T) {
 				simpleMap: make(map[string]any),
 			},
 			args: args[string]{
-				key: Name,
+				key: lazydb.Name,
 			},
 			valueWant: nil,
 			flagWant:  false,
@@ -254,8 +255,8 @@ func TestNewConcurrentMap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := NewConcurrentMap(tt.args.mapShardCount)
-			if len(got.shards) != defaultShardCount {
-				t.Errorf("ShardCount Got = %v, Want %v", got.shardCount, defaultShardCount)
+			if len(got.shards) != DefaultShardCount {
+				t.Errorf("ShardCount Got = %v, Want %v", got.shardCount, DefaultShardCount)
 			}
 		})
 	}
