@@ -2,6 +2,7 @@ package ds
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -145,6 +146,9 @@ func TestAdaptiveRadixTree_PrefixScan(t *testing.T) {
 
 	keys4 := art.PrefixScan(nil, 6)
 	assert.Equal(t, 6, len(keys4))
+
+	keys5 := art.PrefixScan([]byte("bb"), 3)
+	assert.Equal(t, 2, len(keys5))
 }
 
 func TestAdaptiveRadixTree_Iterator(t *testing.T) {

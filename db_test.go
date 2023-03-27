@@ -30,10 +30,10 @@ func TestOpen(t *testing.T) {
 	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
 	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32(), ExpiredAt: time.Now().Unix()}
 	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
-	db.writeLogEntry(valueTypeString, entry1)
-	db.writeLogEntry(valueTypeString, entry2)
-	db.writeLogEntry(valueTypeString, entry3)
-	db.Close()
+	_, _ = db.writeLogEntry(valueTypeString, entry1)
+	_, _ = db.writeLogEntry(valueTypeString, entry2)
+	_, _ = db.writeLogEntry(valueTypeString, entry3)
+	_ = db.Close()
 	defer destroyDB(db)
 
 	// db directory with existing files
@@ -51,10 +51,12 @@ func TestLazyDB_Close(t *testing.T) {
 	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
 	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32(), ExpiredAt: time.Now().Unix()}
 	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
-	db.writeLogEntry(valueTypeString, entry1)
-	db.writeLogEntry(valueTypeString, entry2)
-	db.writeLogEntry(valueTypeString, entry3)
-	defer os.RemoveAll(db.cfg.DBPath)
+	_, _ = db.writeLogEntry(valueTypeString, entry1)
+	_, _ = db.writeLogEntry(valueTypeString, entry2)
+	_, _ = db.writeLogEntry(valueTypeString, entry3)
+	defer func(path string) {
+		_ = os.RemoveAll(path)
+	}(db.cfg.DBPath)
 	err = db.Close()
 	assert.Nil(t, err)
 }
@@ -76,9 +78,9 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 	entry1 := &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()}
 	entry2 := &logfile.LogEntry{Key: GetKey(2), Value: GetValue32(), ExpiredAt: time.Now().Unix()}
 	entry3 := &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()}
-	db.writeLogEntry(valueTypeString, entry1)
-	db.writeLogEntry(valueTypeString, entry2)
-	db.writeLogEntry(valueTypeString, entry3)
+	_, _ = db.writeLogEntry(valueTypeString, entry1)
+	_, _ = db.writeLogEntry(valueTypeString, entry2)
+	_, _ = db.writeLogEntry(valueTypeString, entry3)
 
 	type arg struct {
 		typ    valueType
@@ -202,7 +204,7 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db := &LazyDB{
 		cfg:              &cfg,
-		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		strIndex:         newStrIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
@@ -217,15 +219,15 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(1), db.getActiveLogFile(valueTypeString).lf.Fid)
 
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()})
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(2), Value: GetValue32()})
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()})
-	db.Close()
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(1), Value: GetValue32()})
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(2), Value: GetValue32()})
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(3), Value: GetValue32()})
+	_ = db.Close()
 
 	// test buildLogFiles with existing log files
 	newDB := &LazyDB{
 		cfg:              &cfg,
-		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		strIndex:         newStrIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),

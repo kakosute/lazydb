@@ -2,24 +2,32 @@ package lazydb
 
 import (
 	"io"
+	"lazydb/ds"
 	"lazydb/logfile"
-	"lazydb/util"
 	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
 )
 
-func (db *LazyDB) buildIndexByVType(typ valueType, entry *logfile.LogEntry, vPos *ValuePos) {
-	value := Value{
-		value:     entry.Value,
-		vType:     typ,
-		fid:       vPos.fid,
-		offset:    vPos.offset,
-		entrySize: vPos.entrySize,
-		expiredAt: 0,
+func (db *LazyDB) buildStrIndex(entry *logfile.LogEntry, vPos *ValuePos) {
+	if entry.Stat == logfile.SDelete {
+		db.strIndex.idxTree.Delete(entry.Key)
+		return
 	}
-	db.index.Set(util.ByteToString(entry.Key), value)
+	_, size := logfile.EncodeEntry(entry)
+	idxNode := &Value{fid: vPos.fid, offset: vPos.offset, entrySize: size}
+
+	// TODO: set expire time
+
+	db.strIndex.idxTree.Put(entry.Key, idxNode)
+}
+
+func (db *LazyDB) buildIndexByVType(typ valueType, entry *logfile.LogEntry, vPos *ValuePos) {
+	switch typ {
+	case valueTypeString:
+		db.buildStrIndex(entry, vPos)
+	}
 }
 
 func (db *LazyDB) buildIndexFromLogFiles() error {
@@ -79,13 +87,12 @@ func (db *LazyDB) buildIndexFromLogFiles() error {
 	return nil
 }
 
-func (db *LazyDB) getValue(key []byte, typ valueType) ([]byte, error) {
-	rawValue, ok := db.index.Get(util.ByteToString(key))
-	if !ok {
+func (db *LazyDB) getValue(idxTree *ds.AdaptiveRadixTree, key []byte, typ valueType) ([]byte, error) {
+	rawValue := idxTree.Get(key)
+	if rawValue == nil {
 		return nil, ErrKeyNotFound
-
 	}
-	val, ok := rawValue.(Value)
+	val, ok := rawValue.(*Value)
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
@@ -97,7 +104,28 @@ func (db *LazyDB) getValue(key []byte, typ valueType) ([]byte, error) {
 		return nil, err
 	}
 
-	// TODO: !get key deletion status
+	// check if key has been deleted
+	if ent.Stat == logfile.SDelete {
+		return nil, ErrKeyNotFound
+	}
 
 	return ent.Value, nil
+}
+
+func (db *LazyDB) updateIndexTree(typ valueType, idxTree *ds.AdaptiveRadixTree, entry *logfile.LogEntry, vPos *ValuePos,
+	sendDiscard bool) error {
+
+	var size = vPos.entrySize
+	if typ == valueTypeString || typ == valueTypeList {
+		_, size = logfile.EncodeEntry(entry)
+	}
+	idxNode := &Value{fid: vPos.fid, offset: vPos.offset, entrySize: size}
+
+	// TODO: set expired time
+
+	_, _ = idxTree.Put(entry.Key, idxNode)
+
+	// TODO: send discard
+
+	return nil
 }

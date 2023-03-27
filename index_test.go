@@ -24,7 +24,7 @@ func TestLazyDB_buildIndexFromLogFiles(t *testing.T) {
 	cfg.MaxLogFileSize = 150 //  set max file so that it can only contain 2 entry in a file
 	db := &LazyDB{
 		cfg:              &cfg,
-		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		strIndex:         newStrIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
@@ -39,9 +39,9 @@ func TestLazyDB_buildIndexFromLogFiles(t *testing.T) {
 	val1 := GetValue32()
 	val2 := GetValue32()
 	val3 := GetValue32()
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(1), Value: val1})
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(2), Value: val2})
-	db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(3), Value: val3})
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(1), Value: val1})
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(2), Value: val2})
+	_, _ = db.writeLogEntry(valueTypeString, &logfile.LogEntry{Key: GetKey(3), Value: val3})
 
 	err := db.buildIndexFromLogFiles()
 	assert.NoError(t, err)

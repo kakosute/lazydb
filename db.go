@@ -19,6 +19,7 @@ type (
 	LazyDB struct {
 		cfg              *DBConfig
 		index            *ds.ConcurrentMap[string]
+		strIndex         *strIndex
 		fidsMap          map[valueType]*MutexFids
 		activeLogFileMap map[valueType]*MutexLogFile
 		archivedLogFile  map[valueType]*ds.ConcurrentMap[uint32] // [uint32]*MutexLogFile
@@ -36,6 +37,11 @@ type (
 	}
 
 	valueType uint8
+
+	strIndex struct {
+		mu      *sync.RWMutex
+		idxTree *ds.AdaptiveRadixTree
+	}
 
 	Value struct {
 		value     []byte
@@ -70,6 +76,10 @@ var (
 	ErrOpenLogFile     = errors.New("open Log file error")
 )
 
+func newStrIndex() *strIndex {
+	return &strIndex{idxTree: ds.NewART(), mu: new(sync.RWMutex)}
+}
+
 func Open(cfg DBConfig) (*LazyDB, error) {
 	// create the dir path if not exist
 	if !util.PathExist(cfg.DBPath) {
@@ -82,6 +92,7 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 	db := &LazyDB{
 		cfg:              &cfg,
 		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
+		strIndex:         newStrIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
