@@ -15,21 +15,33 @@ const (
 	SListMeta
 )
 
+// TxStatus of LogEntry
+type TxStatus uint16
+
+const (
+	//  TxCommited represents transaction has been commited
+	TxCommited TxStatus = iota + 1
+	//  TxUnCommited represents transaction has not been commited
+	TxUncommited
+)
+
 // MaxHeaderSize max entry header size.
-// 4    +    1    +    10    +    5    +    5   =   25
-// crc     status   ExpiredAt    kSize     vSize
+// 4    +    1    +    10    +    10    +    3    +    5    +    5   =   38
+// crc     stat     ExpiredAt   TxID     TxStatus   kSize    vSize
 // (refer to binary.MaxVarintLen32 and binary.MaxVarintLen64)
 const MaxHeaderSize = 25
 
 // LogEntry is the data will be appended in log file.
 type LogEntry struct {
-	crc       uint32 // crc32 --check sum
-	ExpiredAt int64  // expire time
-	Stat      Status // delete or list meta
-	kSize     uint32 // key size
-	vSize     uint32 // value size
-	Key       []byte // key
-	Value     []byte // value
+	crc       uint32   // crc32 --check sum
+	ExpiredAt int64    // expire time
+	Stat      Status   // delete or list meta
+	TxID      uint64   // transaction id
+	TxStat    TxStatus // committed / uncommitted
+	kSize     uint32   // key size
+	vSize     uint32   // value size
+	Key       []byte   // key
+	Value     []byte   // value
 }
 
 // EncodeEntry encodes LogEntry into binary form, returns binary LogEntry and the size of LogEntry.
@@ -44,6 +56,10 @@ func EncodeEntry(le *LogEntry) ([]byte, int) {
 	offset := 5
 	expiredAtByte := binary.PutVarint(buf[offset:], le.ExpiredAt)
 	offset += expiredAtByte
+	txIDByte := binary.PutVarint(buf[offset:], int64(le.TxID))
+	offset += txIDByte
+	txStatusByte := binary.PutVarint(buf[offset:], int64(le.TxStat))
+	offset += txStatusByte
 	kSizeByte := binary.PutVarint(buf[offset:], int64(len(le.Key)))
 	offset += kSizeByte
 	vSizeByte := binary.PutVarint(buf[offset:], int64(len(le.Value)))
@@ -73,6 +89,12 @@ func decodeHeader(buf []byte) (*LogEntry, int) {
 	offset := 5
 	expiredAt, size := binary.Varint(buf[offset:])
 	le.ExpiredAt = expiredAt
+	offset += size
+	txID, size := binary.Varint(buf[offset:])
+	le.TxID = uint64(txID)
+	offset += size
+	txStatus, size := binary.Varint(buf[offset:])
+	le.TxStat = TxStatus(txStatus)
 	offset += size
 	kSize, size := binary.Varint(buf[offset:])
 	le.kSize = uint32(kSize)

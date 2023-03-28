@@ -19,13 +19,16 @@ func TestEncodeEntry(t *testing.T) {
 			"nil", args{e: nil}, nil, 0,
 		},
 		{
-			"no_content", args{&LogEntry{}}, []byte{28, 223, 68, 33, 0, 0, 0, 0}, 8,
+			"crc", args{&LogEntry{crc: 1696784233}}, []byte{163, 161, 194, 177, 0, 0, 0, 0, 0, 0}, 10,
 		},
 		{
-			"expiredAt_key_value", args{&LogEntry{ExpiredAt: 1676969769, Stat: SListMeta, Key: []byte("a"), Value: []byte("abc")}}, []byte{111, 64, 3, 225, 2, 210, 156, 164, 191, 12, 2, 6, 97, 97, 98, 99}, 16,
+			"no_content", args{&LogEntry{}}, []byte{163, 161, 194, 177, 0, 0, 0, 0, 0, 0}, 10,
 		},
 		{
-			"delete", args{&LogEntry{Stat: SDelete}}, []byte{121, 184, 248, 153, 1, 0, 0, 0}, 8,
+			"expiredAt_key_value", args{&LogEntry{ExpiredAt: 1676969769, Stat: SListMeta, TxID: 11111111, TxStat: TxUncommited, Key: []byte("a"), Value: []byte("abc")}}, []byte{17, 148, 49, 87, 2, 210, 156, 164, 191, 12, 142, 171, 204, 10, 4, 2, 6, 97, 97, 98, 99}, 21,
+		},
+		{
+			"delete", args{&LogEntry{Stat: SDelete}}, []byte{6, 114, 158, 122, 1, 0, 0, 0, 0, 0}, 10,
 		},
 	}
 	for _, tt := range tests {
@@ -58,10 +61,10 @@ func Test_decodeHeader(t *testing.T) {
 			"no_enough_content", args{buf: []byte{105, 223, 34, 101}}, nil, 0,
 		},
 		{
-			"no_content", args{buf: []byte{105, 223, 34, 101, 0, 0, 0, 0}}, &LogEntry{crc: 1696784233}, 8,
+			"no_content", args{buf: []byte{163, 161, 194, 177, 0, 0, 0, 0, 0, 0}}, &LogEntry{crc: 2982322595}, 10,
 		},
 		{
-			"expiredAt", args{buf: []byte{85, 205, 109, 118, 2, 210, 156, 164, 191, 12, 2, 6}}, &LogEntry{crc: 1986907477, ExpiredAt: 1676969769, Stat: SListMeta, kSize: 1, vSize: 3}, 12,
+			"expiredAt", args{buf: []byte{43, 161, 225, 52, 2, 210, 156, 164, 191, 12, 142, 171, 204, 10, 2, 2, 6, 97, 97, 98, 99}}, &LogEntry{crc: 887202091, ExpiredAt: 1676969769, Stat: SListMeta, TxID: 11111111, TxStat: 1, kSize: 1, vSize: 3}, 17,
 		},
 	}
 	for _, tt := range tests {
@@ -94,7 +97,7 @@ func Test_getEntryCrc(t *testing.T) {
 			"no_enough_content", args{buf: []byte{105, 223, 34, 101}, le: &LogEntry{crc: 2077607535}}, 0,
 		},
 		{
-			"no_content", args{buf: []byte{105, 223, 34, 101, 0, 0, 0, 0}, le: &LogEntry{crc: 558161692}}, 558161692,
+			"no_content", args{buf: []byte{163, 161, 194, 177, 0, 0, 0, 0, 0, 0}, le: &LogEntry{crc: 2982322595}}, 2982322595,
 		},
 		{
 			"expiredAt_key_value", args{buf: []byte{85, 205, 109, 118, 2, 210, 156, 164, 191, 12, 2, 6}, le: &LogEntry{Key: []byte("a"), Value: []byte("abc")}}, 3775086703,
