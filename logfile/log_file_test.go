@@ -47,6 +47,7 @@ func TestLogFile_ReadLogEntry(t *testing.T) {
 		{ExpiredAt: 99400542343, kSize: 0, vSize: 9, Key: nil, Value: []byte("test test")},
 		{ExpiredAt: 8847333912, kSize: 2, vSize: 4, Key: []byte("k2"), Value: []byte("test")},
 		{ExpiredAt: 8847333912, Stat: SDelete, kSize: 2, vSize: 9, Key: []byte("k3"), Value: []byte("some data")},
+		{ExpiredAt: 8847333912, Stat: SDelete, TxID: 100, TxStat: 1, kSize: 2, vSize: 9, Key: []byte("k3"), Value: []byte("some data")},
 	}
 	var vals [][]byte
 	for _, e := range entries {
@@ -91,7 +92,10 @@ func TestLogFile_ReadLogEntry(t *testing.T) {
 			"read-entry-6", fields{lf: lf}, args{offset: offsets[6]}, entries[6], len(vals[6]), false,
 		},
 		{
-			"end-of-file", fields{lf: lf}, args{offset: offsets[6] + int64(len(vals[6]))}, nil, 0, true,
+			"read-entry-7", fields{lf: lf}, args{offset: offsets[7]}, entries[7], len(vals[7]), false,
+		},
+		{
+			"end-of-file", fields{lf: lf}, args{offset: offsets[7] + int64(len(vals[7]))}, nil, 0, true,
 		},
 	}
 	for _, tt := range tests {

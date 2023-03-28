@@ -29,7 +29,7 @@ const (
 // 4    +    1    +    10    +    10    +    3    +    5    +    5   =   38
 // crc     stat     ExpiredAt   TxID     TxStatus   kSize    vSize
 // (refer to binary.MaxVarintLen32 and binary.MaxVarintLen64)
-const MaxHeaderSize = 25
+const MaxHeaderSize = 38
 
 // LogEntry is the data will be appended in log file.
 type LogEntry struct {
