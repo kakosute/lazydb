@@ -1,4 +1,4 @@
-package lazydb
+package ds
 
 import (
 	"math/rand"

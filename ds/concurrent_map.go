@@ -1,4 +1,4 @@
-package lazydb
+package ds
 
 import (
 	"hash/fnv"
@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	defaultShardCount = 32
+	DefaultShardCount = 32
 )
 
 type MapShard[K comparable] struct {
@@ -56,7 +56,7 @@ func NewConcurrentMap(mapShardCount int) *ConcurrentMap[string] {
 	return &cm
 }
 
-// Creates a new concurrent map.
+// NewWithCustomShardingFunction creates a new concurrent map.
 func NewWithCustomShardingFunction[K comparable](mapShardCount int, sharding func(key K) uint32) *ConcurrentMap[K] {
 	cm := newConcurrentMap[K](mapShardCount, sharding)
 	return &cm
@@ -64,8 +64,8 @@ func NewWithCustomShardingFunction[K comparable](mapShardCount int, sharding fun
 
 func newConcurrentMap[K comparable](mapShardCount int, sharding func(key K) uint32) ConcurrentMap[K] {
 	// suggest powers of 2
-	if mapShardCount < defaultShardCount {
-		mapShardCount = defaultShardCount
+	if mapShardCount < DefaultShardCount {
+		mapShardCount = DefaultShardCount
 	}
 
 	cm := ConcurrentMap[K]{
@@ -87,7 +87,7 @@ func fnv32(key string) uint32 {
 	return h.Sum32()
 }
 
-func simpleSharding(key uint32) uint32 {
+func SimpleSharding(key uint32) uint32 {
 	return key
 }
 

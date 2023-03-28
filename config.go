@@ -1,6 +1,7 @@
 package lazydb
 
 import (
+	"lazydb/ds"
 	"lazydb/logfile"
 	"time"
 )
@@ -22,10 +23,10 @@ type DBConfig struct {
 	IOType logfile.IOType
 }
 
-func DefaultDBConfig(path string) *DBConfig {
-	return &DBConfig{
+func DefaultDBConfig(path string) DBConfig {
+	return DBConfig{
 		DBPath:               path,
-		HashIndexShardCount:  defaultShardCount,
+		HashIndexShardCount:  ds.DefaultShardCount,
 		MaxLogFileSize:       defaultMaxLogFileSize,
 		LogFileMergeInterval: defaultLogFileMergeInterval,
 		IOType:               defaultIOType,

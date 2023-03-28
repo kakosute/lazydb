@@ -12,6 +12,26 @@ import (
 // IOType represents different types of file io: FileIO(standard file io).
 type IOType uint8
 
+var (
+	// ErrLogEndOfFile read to the end of the logEntry file
+	ErrLogEndOfFile = errors.New("logfile: end of logEntry file")
+
+	// ErrIllegalFileSize illegal file size
+	ErrIllegalFileSize = errors.New("logfile: illegal file size")
+
+	// ErrUnsupportedIoType ioType not supported
+	ErrUnsupportedIoType = errors.New("logfile: ioType not supported")
+
+	// ErrUnsupportedFileType fileType not supported
+	ErrUnsupportedFileType = errors.New("logfile fileType not supported")
+
+	// ErrInvalidCrc invalid crc.
+	ErrInvalidCrc = errors.New("logfile: invalid crc")
+
+	// ErrWriteSizeNotEqual write size is not equal to entry size.
+	ErrWriteSizeNotEqual = errors.New("logfile: write size is not equal to entry size")
+)
+
 const (
 	// FileIO standard file io.
 	FileIO IOType = iota
@@ -22,10 +42,6 @@ const (
 	// FilePrefix log file prefix. Full name of a file for example file of strings is like: "path/log.strs.00000001".
 	FilePrefix = "log."
 )
-
-var FTypeToString = map[FType]string{
-	Strs: "log.strs.",
-}
 
 // FileType represents different types of log file: wal and value log.
 type FType uint8
@@ -39,12 +55,15 @@ var (
 	FileTypesMap = map[string]FType{
 		"strs": Strs,
 	}
+	FileNamesMap = map[FType]string{
+		Strs: "log.strs.",
+	}
 )
 
 // LogFile is an abstraction of a disk file, entry`s read and write will go through it.
 type LogFile struct {
 	Fid          uint32
-	Offset       int64
+	Offset       int64 // WriteAt
 	IoController iocontroller.IOController
 	Mu           sync.RWMutex
 }
@@ -53,12 +72,12 @@ type LogFile struct {
 // fsize must be a postitive number.And we will create io controller according to ioType.
 func Open(path string, fid uint32, fsize int64, ftype FType, ioType IOType) (*LogFile, error) {
 	if fsize <= 0 {
-		return nil, errors.New("logfile: illegal file size")
+		return nil, ErrIllegalFileSize
 	}
-	if _, ok := FTypeToString[ftype]; !ok {
-		return nil, errors.New("logfile: file type is not supported")
+	if _, ok := FileNamesMap[ftype]; !ok {
+		return nil, ErrUnsupportedFileType
 	}
-	fileName := filepath.Join(path, FTypeToString[ftype]+fmt.Sprintf("%08d", fid))
+	fileName := filepath.Join(path, FileNamesMap[ftype]+fmt.Sprintf("%08d", fid))
 	lf := &LogFile{Fid: fid}
 	var controller iocontroller.IOController
 	var err error
@@ -68,7 +87,7 @@ func Open(path string, fid uint32, fsize int64, ftype FType, ioType IOType) (*Lo
 			return nil, err
 		}
 	default:
-		return nil, errors.New("logfile: io type is not supported")
+		return nil, ErrUnsupportedIoType
 	}
 	lf.IoController = controller
 	return lf, nil
@@ -85,7 +104,7 @@ func (lf *LogFile) ReadLogEntry(offset int64) (*LogEntry, int, error) {
 	}
 	le, size := decodeHeader(headerBuf)
 	if le.crc == 0 && le.kSize == 0 && le.vSize == 0 {
-		return nil, 0, errors.New("logfile: end of logEntry file")
+		return nil, 0, ErrLogEndOfFile
 	}
 	kSize, vSize := int(le.kSize), int(le.vSize)
 	var entrySize = size + kSize + vSize
@@ -102,7 +121,7 @@ func (lf *LogFile) ReadLogEntry(offset int64) (*LogEntry, int, error) {
 	}
 	// check whether the crc is correct
 	if crc := getEntryCrc(headerBuf[:size], le); crc != le.crc {
-		return nil, 0, errors.New("logfile: logEntry crc isn't correct")
+		return nil, 0, ErrInvalidCrc
 	}
 	return le, entrySize, nil
 }
@@ -118,7 +137,7 @@ func (lf *LogFile) Write(buf []byte) error {
 		return err
 	}
 	if size != len(buf) {
-		return errors.New("logfile: fail to write the whole entry")
+		return ErrWriteSizeNotEqual
 	}
 	atomic.AddInt64(&lf.Offset, int64(size))
 	return nil
