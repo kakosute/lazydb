@@ -48,15 +48,27 @@ type FType uint8
 
 const (
 	Strs FType = iota
+	List
+	Hash
+	Set
+	ZSet
 )
 
 var (
 	//  convert string in filename to FType
 	FileTypesMap = map[string]FType{
 		"strs": Strs,
+		"list": List,
+		"hash": Hash,
+		"set":  Set,
+		"zset": ZSet,
 	}
 	FileNamesMap = map[FType]string{
 		Strs: "log.strs.",
+		List: "log.list.",
+		Hash: "log.hash.",
+		Set:  "log.set.",
+		ZSet: "log.zset.",
 	}
 )
 
