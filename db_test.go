@@ -208,6 +208,7 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	db := &LazyDB{
 		cfg:              &cfg,
 		strIndex:         newStrIndex(),
+		hashIndex:        newHashIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
@@ -231,6 +232,7 @@ func TestLazyDB_BuildLogFile(t *testing.T) {
 	newDB := &LazyDB{
 		cfg:              &cfg,
 		strIndex:         newStrIndex(),
+		hashIndex:        newHashIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),

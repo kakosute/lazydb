@@ -20,6 +20,7 @@ type (
 		cfg              *DBConfig
 		index            *ds.ConcurrentMap[string]
 		strIndex         *strIndex
+		hashIndex        *hashIndex
 		fidsMap          map[valueType]*MutexFids
 		activeLogFileMap map[valueType]*MutexLogFile
 		archivedLogFile  map[valueType]*ds.ConcurrentMap[uint32] // [uint32]*MutexLogFile
@@ -41,6 +42,11 @@ type (
 	strIndex struct {
 		mu      *sync.RWMutex
 		idxTree *ds.AdaptiveRadixTree
+	}
+
+	hashIndex struct {
+		mu    *sync.RWMutex
+		trees map[string]*ds.AdaptiveRadixTree
 	}
 
 	Value struct {
@@ -80,6 +86,10 @@ func newStrIndex() *strIndex {
 	return &strIndex{idxTree: ds.NewART(), mu: new(sync.RWMutex)}
 }
 
+func newHashIndex() *hashIndex {
+	return &hashIndex{trees: make(map[string]*ds.AdaptiveRadixTree), mu: new(sync.RWMutex)}
+}
+
 func Open(cfg DBConfig) (*LazyDB, error) {
 	// create the dir path if not exist
 	if !util.PathExist(cfg.DBPath) {
@@ -93,6 +103,7 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 		cfg:              &cfg,
 		index:            ds.NewConcurrentMap(int(cfg.HashIndexShardCount)),
 		strIndex:         newStrIndex(),
+		hashIndex:        newHashIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
