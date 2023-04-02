@@ -69,7 +69,7 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 	wd, _ := os.Getwd()
 	path := filepath.Join(wd, "tmp")
 	cfg := DefaultDBConfig(path)
-	cfg.MaxLogFileSize = 150 // set max file size to 150B, only contain 2 entry in 1 file
+	cfg.MaxLogFileSize = 160 // set max file size to 150B, only contain 2 entry in 1 file
 	db, err := Open(cfg)
 	defer destroyDB(db)
 	assert.Nil(t, err)
@@ -107,7 +107,7 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 			arg: arg{
 				typ:    valueTypeString,
 				fid:    1,
-				offset: 72,
+				offset: 74,
 			},
 			expectedKey:      entry2.Key,
 			expectedValue:    entry2.Value,
@@ -128,6 +128,9 @@ func TestLazyDB_ReadLogEntry(t *testing.T) {
 	for _, tt := range tests {
 		entry, err := db.readLogEntry(tt.arg.typ, tt.arg.fid, tt.arg.offset)
 		assert.Nil(t, err)
+		if err != nil {
+			continue
+		}
 		assert.Equal(t, tt.expectedKey, entry.Key)
 		assert.Equal(t, tt.expectedValue, entry.Value)
 		assert.Equal(t, tt.expectedExpireAt, entry.ExpiredAt)
@@ -161,7 +164,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 			},
 			wantFid:       1,
 			wantOffset:    0,
-			wantEntrySize: 72,
+			wantEntrySize: 74,
 		},
 		{
 			args: args{
@@ -169,8 +172,8 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 				value: GetValue32(),
 			},
 			wantFid:       1,
-			wantOffset:    72,
-			wantEntrySize: 72,
+			wantOffset:    74,
+			wantEntrySize: 74,
 		},
 		{
 			args: args{
@@ -179,7 +182,7 @@ func TestLazyDB_WriteLogEntry(t *testing.T) {
 			},
 			wantFid:       2,
 			wantOffset:    0,
-			wantEntrySize: 72,
+			wantEntrySize: 74,
 		},
 	}
 
