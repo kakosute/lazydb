@@ -4,6 +4,7 @@ import (
 	"io"
 	"lazydb/ds"
 	"lazydb/logfile"
+	"lazydb/util"
 	"log"
 	"sort"
 	"sync"
@@ -23,10 +24,30 @@ func (db *LazyDB) buildStrIndex(entry *logfile.LogEntry, vPos *ValuePos) {
 	db.strIndex.idxTree.Put(entry.Key, idxNode)
 }
 
+func (db *LazyDB) buildHashIndex(entry *logfile.LogEntry, vPos *ValuePos) {
+	key, _ := decodeKey(entry.Key)
+	db.hashIndex.mu.Lock()
+	defer db.hashIndex.mu.Unlock()
+	idxTree := db.hashIndex.trees[util.ByteToString(key)]
+	if entry.Stat == logfile.SDelete {
+		idxTree.Delete(entry.Key)
+		return
+	}
+
+	_, size := logfile.EncodeEntry(entry)
+	idxNode := &Value{fid: vPos.fid, offset: vPos.offset, entrySize: size}
+
+	// TODO: set expire time
+
+	idxTree.Put(entry.Key, idxNode)
+}
+
 func (db *LazyDB) buildIndexByVType(typ valueType, entry *logfile.LogEntry, vPos *ValuePos) {
 	switch typ {
 	case valueTypeString:
 		db.buildStrIndex(entry, vPos)
+	case valueTypeHash:
+		db.buildHashIndex(entry, vPos)
 	}
 }
 
