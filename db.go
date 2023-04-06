@@ -420,8 +420,8 @@ func (db *LazyDB) getActiveLogFile(typ valueType) *MutexLogFile {
 func encodeKey(key, subKey []byte) []byte {
 	header := make([]byte, encodeHeaderSize)
 	var index int
-	index += binary.PutVarint(header, int64(len(key)))
-	index += binary.PutVarint(header, int64(len(subKey)))
+	index += binary.PutVarint(header[index:], int64(len(key)))
+	index += binary.PutVarint(header[index:], int64(len(subKey)))
 	length := len(key) + len(subKey)
 	if length > 0 {
 		buf := make([]byte, length+index)
@@ -433,14 +433,11 @@ func encodeKey(key, subKey []byte) []byte {
 	return header[:index]
 }
 
-func decodeKey(encodedKey []byte) (key, subKey []byte) {
+func decodeKey(encodedKey []byte) ([]byte, []byte) {
 	var index int
 	keyLen, n := binary.Varint(encodedKey)
 	index += n
-	subKeyLen, n := binary.Varint(encodedKey[index:])
+	_, n = binary.Varint(encodedKey[index:])
 	index += n
-
-	copy(key, encodedKey[index:index+int(keyLen)])
-	copy(subKey, encodedKey[index:index+int(subKeyLen)])
-	return
+	return encodedKey[index : index+int(keyLen)], encodedKey[index+int(keyLen):]
 }
