@@ -35,16 +35,20 @@ func (t *AdaptiveRadixTree) Iterator() art.Iterator {
 	return t.tree.Iterator()
 }
 
+// PrefixScan returns keys start with specific prefix
+// Count refers to the maximum number of retrieved keys. No limitation if count is smaller than 0.
 func (t *AdaptiveRadixTree) PrefixScan(prefix []byte, count int) (keys [][]byte) {
 	cb := func(node art.Node) bool {
 		if node.Kind() != art.Leaf {
 			return true
 		}
-		if count <= 0 {
+		if count == 0 {
 			return false
 		}
 		keys = append(keys, node.Key())
-		count--
+		if count > 0 {
+			count--
+		}
 		return true
 	}
 
