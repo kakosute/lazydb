@@ -90,3 +90,77 @@ func (db *LazyDB) HDel(key []byte, fields ...[]byte) (int, error) {
 	}
 	return count, nil
 }
+
+// HExists returns whether the field exists in the hash stored at key
+// Returns false either key or field is not exist
+func (db *LazyDB) HExists(key []byte, field []byte) (bool, error) {
+	db.hashIndex.mu.RLock()
+	defer db.hashIndex.mu.RUnlock()
+
+	idxTree := db.hashIndex.trees[util.ByteToString(key)]
+	if idxTree == nil {
+		return false, nil
+	}
+
+	hashkey := encodeKey(key, field)
+	_, err := db.getValue(idxTree, hashkey, valueTypeHash)
+	if err == ErrKeyNotFound {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// HGetAll returns all field-value pair exist in the hash stored at key
+func (db *LazyDB) HGetAll(key []byte) ([][]byte, error) {
+	db.hashIndex.mu.RLock()
+	defer db.hashIndex.mu.RUnlock()
+
+	idxTree := db.hashIndex.trees[util.ByteToString(key)]
+	if idxTree == nil {
+		return [][]byte{}, nil
+	}
+
+	results := make([][]byte, 0)
+	iter := idxTree.Iterator()
+	for iter.HasNext() {
+		node, err := iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		value, err := db.getValue(idxTree, node.Key(), valueTypeHash)
+		if err == ErrKeyNotFound {
+			continue
+		} else if err != nil {
+			return [][]byte{}, err
+		}
+		_, field := decodeKey(node.Key())
+		results = append(results, field)
+		results = append(results, value)
+	}
+	return results, nil
+}
+
+// HKeys returns all fields exist in the hash stored at key
+func (db *LazyDB) HKeys(key []byte) ([][]byte, error) {
+	db.hashIndex.mu.RLock()
+	defer db.hashIndex.mu.RUnlock()
+
+	idxTree := db.hashIndex.trees[util.ByteToString(key)]
+	if idxTree == nil {
+		return [][]byte{}, nil
+	}
+	fields := make([][]byte, 0)
+	iter := idxTree.Iterator()
+	for iter.HasNext() {
+		node, err := iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		_, field := decodeKey(node.Key())
+		fields = append(fields, field)
+	}
+	return fields, nil
+}
