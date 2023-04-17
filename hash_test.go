@@ -370,5 +370,228 @@ func TestLazyDB_HKeys(t *testing.T) {
 			assert.Equal(t, GetKey(i), keys[i])
 		}
 	})
+}
 
+func TestLazyDB_HVals(t *testing.T) {
+	db := initTestDB()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+	k1V1, k1V2, k1V3 := GetValue32(), GetValue32(), GetValue32()
+	db.HSet([]byte("k1"), GetKey(1), k1V1, GetKey(2), k1V2, GetKey(3), k1V3)
+	db.HSet([]byte("k2"), GetKey(1), GetValue32())
+	db.HDel([]byte("k2"), GetKey(1))
+
+	tests := []struct {
+		name    string
+		key     []byte
+		want    [][]byte
+		wantErr bool
+	}{
+		{
+			name:    "normal",
+			key:     []byte("k1"),
+			want:    [][]byte{k1V1, k1V2, k1V3},
+			wantErr: false,
+		},
+		{
+			name:    "key exists but contains no field",
+			key:     []byte("k2"),
+			want:    [][]byte{},
+			wantErr: false,
+		},
+		{
+			name:    "key not exists ",
+			key:     []byte("k3"),
+			want:    [][]byte{},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.HVals(tt.key)
+			assert.Equal(t, tt.wantErr, err != nil)
+			assert.Equal(t, true, reflect.DeepEqual(got, tt.want))
+		})
+	}
+
+	t.Run("Test large number of keys", func(t *testing.T) {
+		writeCnt := 100000
+		hashKey := []byte("k_lots_of_fields")
+		wantVal := [][]byte{}
+		for i := 0; i < writeCnt; i++ {
+			val := GetValue32()
+			wantVal = append(wantVal, val)
+			db.HSet(hashKey, GetKey(i), val)
+		}
+		vals, err := db.HVals(hashKey)
+		assert.Nil(t, err)
+		assert.Equal(t, writeCnt, len(vals))
+		for i := 0; i < writeCnt; i++ {
+			assert.Equal(t, wantVal[i], vals[i])
+		}
+	})
+}
+
+func TestLazyDB_HSetNX(t *testing.T) {
+	db := initTestDB()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+	v1 := GetValue32()
+	db.HSet([]byte("k1"), GetKey(1), v1)
+
+	type args struct {
+		key   []byte
+		field []byte
+		value []byte
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		wantVal []byte
+	}{
+		{
+			name: "normal",
+			args: args{
+				key:   []byte("k1"),
+				field: GetKey(2),
+				value: []byte("field2"),
+			},
+			wantVal: []byte("field2"),
+		},
+		{
+			name: "already exist",
+			args: args{
+				key:   []byte("k1"),
+				field: GetKey(1),
+				value: []byte("field2"),
+			},
+			wantVal: v1,
+		},
+		{
+			name: "key not exist",
+			args: args{
+				key:   []byte("k2"),
+				field: GetKey(1),
+				value: []byte("k2-field1"),
+			},
+			wantVal: []byte("k2-field1"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := db.HSetNX(tt.args.key, tt.args.field, tt.args.value)
+			assert.Nil(t, err)
+			got, err := db.HGet(tt.args.key, tt.args.field)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.wantVal, got)
+		})
+	}
+}
+
+func TestLazyDB_HMGet(t *testing.T) {
+	db := initTestDB()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+	v1, v2, v3 := GetValue32(), GetValue32(), GetValue32()
+	db.HSet([]byte("k1"), GetKey(1), v1, GetKey(2), v2, GetKey(3), v3)
+
+	type args struct {
+		key    []byte
+		fields [][]byte
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want [][]byte
+	}{
+		{
+			name: "normal",
+			args: args{
+				key:    []byte("k1"),
+				fields: [][]byte{GetKey(1), GetKey(2), GetKey(3)},
+			},
+			want: [][]byte{v1, v2, v3},
+		},
+		{
+			name: "one field doesn't exist",
+			args: args{
+				key:    []byte("k1"),
+				fields: [][]byte{GetKey(1), GetKey(4), GetKey(3)},
+			},
+			want: [][]byte{v1, v3},
+		},
+		{
+			name: "all fields don't exist",
+			args: args{
+				key:    []byte("k1"),
+				fields: [][]byte{GetKey(4), GetKey(5)},
+			},
+			want: [][]byte{},
+		},
+		{
+			name: "key doesn't exist",
+			args: args{
+				key:    []byte("k2"),
+				fields: [][]byte{GetKey(4), GetKey(5)},
+			},
+			want: [][]byte{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.HMGet(tt.args.key, tt.args.fields...)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLazyDB_HLen(t *testing.T) {
+	db := initTestDB()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+	v1, v2, v3 := GetValue32(), GetValue32(), GetValue32()
+	db.HSet([]byte("k1"), GetKey(1), v1, GetKey(2), v2, GetKey(3), v3)
+
+	type args struct {
+		key []byte
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{
+			name: "normal",
+			args: args{key: []byte("k1")},
+			want: 3,
+		},
+		{
+			name: "empty key",
+			args: args{key: []byte("k2")},
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := db.HLen(tt.args.key)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+	// test deletion
+	db.HDel([]byte("k1"), GetKey(1))
+	t.Run("test deletion", func(t *testing.T) {
+		got := db.HLen([]byte("k1"))
+		assert.Equal(t, 2, got)
+	})
+	db.HDel([]byte("k1"), GetKey(2), GetKey(3))
+	t.Run("test deletion_all", func(t *testing.T) {
+		got := db.HLen([]byte("k1"))
+		assert.Equal(t, 0, got)
+	})
 }
