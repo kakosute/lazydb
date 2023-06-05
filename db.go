@@ -200,6 +200,32 @@ func (db *LazyDB) mergeStr(fid uint32, offset int64, ent *logfile.LogEntry) erro
 	return nil
 }
 
+func (db *LazyDB) mergeHash(fid uint32, offset int64, ent *logfile.LogEntry) error {
+	key, _ := decodeKey(ent.Key)
+	db.hashIndex.mu.RLock()
+	defer db.hashIndex.mu.RUnlock()
+	idxTree := db.hashIndex.trees[util.ByteToString(key)]
+
+	indexVal := idxTree.Get(ent.Key)
+	if indexVal == nil {
+		return nil
+	}
+
+	val, _ := indexVal.(*Value)
+	// Only update rewriting entry when fid and offset is the same
+	// as in index. Otherwise, this entry is updated in other log.
+	if val != nil && val.fid == fid && val.offset == offset {
+		// rewrite entry
+		valuePos, err := db.writeLogEntry(valueTypeHash, ent)
+		if err != nil {
+			return err
+		}
+		// update index
+		db.updateIndexTree(valueTypeHash, idxTree, ent, valuePos, false)
+	}
+	return nil
+}
+
 func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
 	archivedFile := db.getArchivedLogFile(typ, targetFid)
 	if archivedFile == nil {
@@ -228,6 +254,8 @@ func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
 		switch typ {
 		case valueTypeString:
 			mergeErr = db.mergeStr(archivedFile.lf.Fid, off, ent)
+		case valueTypeHash:
+			mergeErr = db.mergeHash(archivedFile.lf.Fid, off, ent)
 		}
 		if mergeErr != nil {
 			return mergeErr
@@ -239,9 +267,9 @@ func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
 	shard := archivedLogFiles.GetShardByWriting(targetFid)
 
 	val, _ := shard.Get(targetFid)
-	lf := val.(*logfile.LogFile)
+	mutexLF := val.(*MutexLogFile)
 
-	_ = lf.Delete()         // close file and remove local file
+	_ = mutexLF.lf.Delete() // close file and remove local file
 	shard.Remove(targetFid) // remove index from memory
 
 	shard.Unlock()
@@ -433,6 +461,8 @@ func encodeKey(key, subKey []byte) []byte {
 	return header[:index]
 }
 
+// decodeKey returns key and subKey from entry
+// key is used to locate the index tree, subKey is used to locate the Value in the indexTree
 func decodeKey(encodedKey []byte) ([]byte, []byte) {
 	var index int
 	keyLen, n := binary.Varint(encodedKey)

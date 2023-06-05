@@ -62,7 +62,31 @@ func TestLazyDB_Close(t *testing.T) {
 }
 
 func TestLazyDB_Merge(t *testing.T) {
+	wd, _ := os.Getwd()
+	path := filepath.Join(wd, "tmp")
+	cfg := DefaultDBConfig(path)
+	cfg.MaxLogFileSize = 500
+	db, err := Open(cfg)
+	assert.Nil(t, err)
 
+	for i := 0; i < 10; i++ {
+		db.HSet(GetKey(1), []byte("f1"), GetValue(32))
+	}
+	for i := 0; i < 10; i++ {
+		db.HSet(GetKey(2), []byte("f2"), GetValue(32))
+	}
+
+	lfs := db.fidsMap[valueTypeHash]
+	for _, fid := range lfs.fids {
+		err := db.Merge(valueTypeHash, fid)
+		assert.Nil(t, err)
+	}
+
+	defer func(path string) {
+		_ = os.RemoveAll(path)
+	}(db.cfg.DBPath)
+	err = db.Close()
+	assert.Nil(t, err)
 }
 
 func TestLazyDB_ReadLogEntry(t *testing.T) {
