@@ -21,6 +21,11 @@ type DBConfig struct {
 	//  IOType
 	//  Only support FileIO at the moment
 	IOType logfile.IOType
+	// DiscardBufferSize a channel will be created to send the older entry size when a key updated or deleted.
+	// Entry size will be saved in the discard file, recording the invalid size in a log file, and be used when log file gc is running.
+	// This option represents the size of that channel.
+	// If you got errors like `send discard chan fail`, you can increase this option to avoid it.
+	DiscardBufferSize int
 }
 
 func DefaultDBConfig(path string) DBConfig {
@@ -30,5 +35,6 @@ func DefaultDBConfig(path string) DBConfig {
 		MaxLogFileSize:       defaultMaxLogFileSize,
 		LogFileMergeInterval: defaultLogFileMergeInterval,
 		IOType:               defaultIOType,
+		DiscardBufferSize:    8 << 20,
 	}
 }

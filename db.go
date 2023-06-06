@@ -9,6 +9,7 @@ import (
 	"lazydb/util"
 	"log"
 	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ type (
 		index            *ds.ConcurrentMap[string]
 		strIndex         *strIndex
 		hashIndex        *hashIndex
+		discardsMap      map[valueType]*discard
 		fidsMap          map[valueType]*MutexFids
 		activeLogFileMap map[valueType]*MutexLogFile
 		archivedLogFile  map[valueType]*ds.ConcurrentMap[uint32] // [uint32]*MutexLogFile
@@ -77,6 +79,7 @@ const (
 	logFileTypeNum = 5
 
 	encodeHeaderSize = 10
+	discardFilePath  = "DISCARD"
 )
 
 var (
@@ -115,6 +118,11 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 	for i := 0; i < logFileTypeNum; i++ {
 		db.fidsMap[valueType(i)] = &MutexFids{fids: make([]uint32, 0)}
 		db.archivedLogFile[valueType(i)] = ds.NewWithCustomShardingFunction[uint32](ds.DefaultShardCount, ds.SimpleSharding)
+	}
+
+	if err := db.initDiscard(); err != nil {
+		log.Fatalf("Init Discard Files error: %v", err)
+		return nil, err
 	}
 
 	if err := db.buildLogFiles(); err != nil {
@@ -444,7 +452,26 @@ func (db *LazyDB) getActiveLogFile(typ valueType) *MutexLogFile {
 	}
 	return mutexLf
 }
+func (db *LazyDB) initDiscard() error {
+	discardPath := path.Join(db.cfg.DBPath, discardFilePath)
+	if !util.PathExist(discardPath) {
+		if err := os.MkdirAll(discardPath, os.ModePerm); err != nil {
+			return err
+		}
+	}
 
+	discardsMap := make(map[valueType]*discard)
+	for i := 0; i < logFileTypeNum; i++ {
+		name := logfile.FileNamesMap[logfile.FType(i)] + discardFileName
+		d, err := newDiscard(discardPath, name, db.cfg.DiscardBufferSize)
+		if err != nil {
+			return err
+		}
+		discardsMap[valueType(i)] = d
+	}
+	db.discardsMap = discardsMap
+	return nil
+}
 func encodeKey(key, subKey []byte) []byte {
 	header := make([]byte, encodeHeaderSize)
 	var index int

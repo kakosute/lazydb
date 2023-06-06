@@ -15,6 +15,7 @@ import (
 const (
 	discardRecordSize       = 12
 	discardFileSize   int64 = 2 << 12
+	discardFileName         = "discard"
 )
 
 var (
