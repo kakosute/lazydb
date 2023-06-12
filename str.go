@@ -440,7 +440,7 @@ func (db *LazyDB) GetStrsKeys() ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		indexNode, _ := node.Value().(*indexNode)
+		indexNode, _ := node.Value().(*Value)
 		if indexNode == nil {
 			continue
 		}
