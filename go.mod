@@ -3,6 +3,7 @@ module lazydb
 go 1.18
 
 require (
+	github.com/gansidui/skiplist v0.0.0-20141121051332-c6a909ce563b
 	github.com/plar/go-adaptive-radix-tree v1.0.5
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.8.1

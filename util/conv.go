@@ -1,6 +1,8 @@
 package util
 
 import (
+	"encoding/binary"
+	"math"
 	"reflect"
 	"unsafe"
 )
@@ -21,4 +23,16 @@ func StringToByte(s string) (b []byte) {
 	bh.Cap = sh.Len
 	bh.Len = sh.Len
 	return b
+}
+
+func ByteToFloat64(bytes []byte) float64 {
+	bits := binary.LittleEndian.Uint64(bytes)
+	return math.Float64frombits(bits)
+}
+
+func Float64ToByte(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits)
+	return bytes
 }

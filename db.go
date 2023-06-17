@@ -26,6 +26,7 @@ type (
 		hashIndex        *hashIndex
 		listIndex        *listIndex
 		setIndex         *setIndex
+		zSetIndex        *zSetIndex
 		discardsMap      map[valueType]*discard
 		fidsMap          map[valueType]*MutexFids
 		activeLogFileMap map[valueType]*MutexLogFile
@@ -64,6 +65,11 @@ type (
 		mu      *sync.RWMutex
 		murHash *util.Murmur128
 		trees   map[string]*ds.AdaptiveRadixTree
+	}
+
+	zSetIndex struct {
+		mu      *sync.RWMutex
+		indexes map[string]*ZSetIndex
 	}
 
 	Value struct {
@@ -125,6 +131,13 @@ func newSetIndex() *setIndex {
 	}
 }
 
+func newZSetIndex() *zSetIndex {
+	return &zSetIndex{
+		mu:      new(sync.RWMutex),
+		indexes: make(map[string]*ZSetIndex),
+	}
+}
+
 func Open(cfg DBConfig) (*LazyDB, error) {
 	// create the dir path if not exist
 	if !util.PathExist(cfg.DBPath) {
@@ -141,6 +154,7 @@ func Open(cfg DBConfig) (*LazyDB, error) {
 		hashIndex:        newHashIndex(),
 		listIndex:        newListIndex(),
 		setIndex:         newSetIndex(),
+		zSetIndex:        newZSetIndex(),
 		fidsMap:          make(map[valueType]*MutexFids),
 		activeLogFileMap: make(map[valueType]*MutexLogFile),
 		archivedLogFile:  make(map[valueType]*ds.ConcurrentMap[uint32]),
