@@ -573,3 +573,257 @@ func TestLazyDB_ZRem(t *testing.T) {
 		})
 	}
 }
+
+func TestLazyDB_ZPopMax(t *testing.T) {
+	db := initTestZset()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+
+	db.ZAdd([]byte("k1"), util.Float64ToByte(1), []byte("k1_m1"), util.Float64ToByte(2), []byte("k1_m2"),
+		util.Float64ToByte(3), []byte("k1_m3"), util.Float64ToByte(4), []byte("k1_m4"), util.Float64ToByte(5), []byte("k1_m5"))
+
+	type args struct {
+		key []byte
+	}
+
+	tests := []struct {
+		name           string
+		args           args
+		expectedMember []byte
+		expectedScore  float64
+		expectedErr    error
+	}{
+		{
+			name: "existed key and member",
+			args: args{
+				key: []byte("k1"),
+			},
+			expectedMember: util.StringToByte("k1_m5"),
+			expectedScore:  5,
+			expectedErr:    nil,
+		},
+		{
+			name: "second pop",
+			args: args{
+				key: []byte("k1"),
+			},
+			expectedMember: util.StringToByte("k1_m4"),
+			expectedScore:  4,
+			expectedErr:    nil,
+		},
+		{
+			name: "not existed key",
+			args: args{
+				key: []byte("k2"),
+			},
+			expectedMember: nil,
+			expectedScore:  0,
+			expectedErr:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			member, score, err := db.ZPopMax(tt.args.key)
+			assert.Equal(t, tt.expectedMember, member)
+			assert.Equal(t, tt.expectedScore, score)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func TestLazyDB_ZPopMaxWithCount(t *testing.T) {
+	db := initTestZset()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+
+	db.ZAdd([]byte("k1"), util.Float64ToByte(1), []byte("k1_m1"), util.Float64ToByte(2), []byte("k1_m2"),
+		util.Float64ToByte(3), []byte("k1_m3"), util.Float64ToByte(4), []byte("k1_m4"), util.Float64ToByte(5), []byte("k1_m5"))
+
+	type args struct {
+		key   []byte
+		count int
+	}
+
+	tests := []struct {
+		name            string
+		args            args
+		expectedMembers [][]byte
+		expectedScores  []float64
+		expectedErr     error
+	}{
+		{
+			name: "count is 1",
+			args: args{
+				key:   []byte("k1"),
+				count: 1,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m5")},
+			expectedScores:  []float64{5},
+			expectedErr:     nil,
+		},
+		{
+			name: "count is 2",
+			args: args{
+				key:   []byte("k1"),
+				count: 2,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m4"), util.StringToByte("k1_m3")},
+			expectedScores:  []float64{4, 3},
+			expectedErr:     nil,
+		},
+		{
+			name: "count is bigger than card",
+			args: args{
+				key:   []byte("k1"),
+				count: 10,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m2"), util.StringToByte("k1_m1")},
+			expectedScores:  []float64{2, 1},
+			expectedErr:     nil,
+		},
+		{
+			name: "not existed key",
+			args: args{
+				key: []byte("k2"),
+			},
+			expectedMembers: nil,
+			expectedScores:  nil,
+			expectedErr:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			members, scores, err := db.ZPopMaxWithCount(tt.args.key, tt.args.count)
+			assert.Equal(t, tt.expectedMembers, members)
+			assert.Equal(t, tt.expectedScores, scores)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func TestLazyDB_ZPopMin(t *testing.T) {
+	db := initTestZset()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+
+	db.ZAdd([]byte("k1"), util.Float64ToByte(1), []byte("k1_m1"), util.Float64ToByte(2), []byte("k1_m2"),
+		util.Float64ToByte(3), []byte("k1_m3"), util.Float64ToByte(4), []byte("k1_m4"), util.Float64ToByte(5), []byte("k1_m5"))
+
+	type args struct {
+		key []byte
+	}
+
+	tests := []struct {
+		name           string
+		args           args
+		expectedMember []byte
+		expectedScore  float64
+		expectedErr    error
+	}{
+		{
+			name: "existed key and member",
+			args: args{
+				key: []byte("k1"),
+			},
+			expectedMember: util.StringToByte("k1_m1"),
+			expectedScore:  1,
+			expectedErr:    nil,
+		},
+		{
+			name: "second pop",
+			args: args{
+				key: []byte("k1"),
+			},
+			expectedMember: util.StringToByte("k1_m2"),
+			expectedScore:  2,
+			expectedErr:    nil,
+		},
+		{
+			name: "not existed key",
+			args: args{
+				key: []byte("k2"),
+			},
+			expectedMember: nil,
+			expectedScore:  0,
+			expectedErr:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			member, score, err := db.ZPopMin(tt.args.key)
+			assert.Equal(t, tt.expectedMember, member)
+			assert.Equal(t, tt.expectedScore, score)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func TestLazyDB_ZPopMinWithCount(t *testing.T) {
+	db := initTestZset()
+	defer destroyDB(db)
+	assert.NotNil(t, db)
+
+	db.ZAdd([]byte("k1"), util.Float64ToByte(1), []byte("k1_m1"), util.Float64ToByte(2), []byte("k1_m2"),
+		util.Float64ToByte(3), []byte("k1_m3"), util.Float64ToByte(4), []byte("k1_m4"), util.Float64ToByte(5), []byte("k1_m5"))
+
+	type args struct {
+		key   []byte
+		count int
+	}
+
+	tests := []struct {
+		name            string
+		args            args
+		expectedMembers [][]byte
+		expectedScores  []float64
+		expectedErr     error
+	}{
+		{
+			name: "count is 1",
+			args: args{
+				key:   []byte("k1"),
+				count: 1,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m1")},
+			expectedScores:  []float64{1},
+			expectedErr:     nil,
+		},
+		{
+			name: "count is 2",
+			args: args{
+				key:   []byte("k1"),
+				count: 2,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m2"), util.StringToByte("k1_m3")},
+			expectedScores:  []float64{2, 3},
+			expectedErr:     nil,
+		},
+		{
+			name: "count is bigger than card",
+			args: args{
+				key:   []byte("k1"),
+				count: 10,
+			},
+			expectedMembers: [][]byte{util.StringToByte("k1_m4"), util.StringToByte("k1_m5")},
+			expectedScores:  []float64{4, 5},
+			expectedErr:     nil,
+		},
+		{
+			name: "not existed key",
+			args: args{
+				key: []byte("k2"),
+			},
+			expectedMembers: nil,
+			expectedScores:  nil,
+			expectedErr:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			members, scores, err := db.ZPopMinWithCount(tt.args.key, tt.args.count)
+			assert.Equal(t, tt.expectedMembers, members)
+			assert.Equal(t, tt.expectedScores, scores)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}

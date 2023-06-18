@@ -292,3 +292,93 @@ func (db *LazyDB) ZRem(key []byte, members ...[]byte) (number int, err error) {
 	}
 	return count, nil
 }
+
+// ZPopMax Removes and returns up to count members with the highest scores in the sorted set stored at key.
+// When left unspecified, the default value for count is 1.
+// Specifying a count value that is higher than the sorted set's cardinality will not produce an error.
+func (db *LazyDB) ZPopMax(key []byte) ([]byte, float64, error) {
+	db.zSetIndex.mu.Lock()
+
+	idx := db.zSetIndex.indexes[util.ByteToString(key)]
+	if idx == nil || idx.tree == nil || idx.skl == nil || idx.skl.Len() == 0 {
+		return nil, 0, nil
+	}
+	element := idx.skl.GetElementByRank(idx.skl.Len())
+	member := element.Value.(*Node).member
+	score := element.Value.(*Node).score
+
+	db.zSetIndex.mu.Unlock()
+
+	_, err := db.ZRem(key, util.StringToByte(member))
+	if err != nil {
+		return nil, 0, err
+	}
+	return util.StringToByte(member), score, nil
+}
+
+func (db *LazyDB) ZPopMaxWithCount(key []byte, count int) (members [][]byte, scores []float64, err error) {
+	db.zSetIndex.mu.Lock()
+
+	idx := db.zSetIndex.indexes[util.ByteToString(key)]
+	if idx == nil || idx.tree == nil || idx.skl == nil {
+		return nil, nil, nil
+	}
+	count = util.Min(count, idx.skl.Len())
+
+	db.zSetIndex.mu.Unlock()
+
+	for i := 0; i < count; i++ {
+		member, score, err := db.ZPopMax(key)
+		if err != nil {
+			return nil, nil, err
+		}
+		members = append(members, member)
+		scores = append(scores, score)
+	}
+	return
+}
+
+// ZPopMin Removes and returns up to count members with the lowest scores in the sorted set stored at key.
+// When left unspecified, the default value for count is 1.
+// Specifying a count value that is higher than the sorted set's cardinality will not produce an error.
+func (db *LazyDB) ZPopMin(key []byte) ([]byte, float64, error) {
+	db.zSetIndex.mu.Lock()
+
+	idx := db.zSetIndex.indexes[util.ByteToString(key)]
+	if idx == nil || idx.tree == nil || idx.skl == nil || idx.skl.Len() == 0 {
+		return nil, 0, nil
+	}
+	element := idx.skl.GetElementByRank(1)
+	member := element.Value.(*Node).member
+	score := element.Value.(*Node).score
+
+	db.zSetIndex.mu.Unlock()
+
+	_, err := db.ZRem(key, util.StringToByte(member))
+	if err != nil {
+		return nil, 0, err
+	}
+	return util.StringToByte(member), score, nil
+}
+
+func (db *LazyDB) ZPopMinWithCount(key []byte, count int) (members [][]byte, scores []float64, err error) {
+	db.zSetIndex.mu.Lock()
+
+	idx := db.zSetIndex.indexes[util.ByteToString(key)]
+	if idx == nil || idx.tree == nil || idx.skl == nil {
+		return nil, nil, nil
+	}
+	count = util.Min(count, idx.skl.Len())
+
+	db.zSetIndex.mu.Unlock()
+
+	for i := 0; i < count; i++ {
+		member, score, err := db.ZPopMin(key)
+		if err != nil {
+			return nil, nil, err
+		}
+		members = append(members, member)
+		scores = append(scores, score)
+	}
+	return
+}
