@@ -7,6 +7,7 @@ require (
 	github.com/plar/go-adaptive-radix-tree v1.0.5
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.8.1
+	golang.org/x/sys v0.9.0
 )
 
 require (

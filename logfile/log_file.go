@@ -35,6 +35,8 @@ var (
 const (
 	// FileIO standard file io.
 	FileIO IOType = iota
+	// MMap memory map
+	Mmap
 	// can add more type when needed
 )
 
