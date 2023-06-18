@@ -223,3 +223,11 @@ func (d *discard) getCCL(activeFid uint32, ratio float64) ([]uint32, error) {
 	})
 	return ccl, nil
 }
+
+func (d *discard) sync() error {
+	return d.file.Sync()
+}
+
+func (d *discard) close() error {
+	return d.file.Close()
+}

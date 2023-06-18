@@ -192,6 +192,12 @@ func (db *LazyDB) Sync() error {
 		}
 		mlf.mu.Unlock()
 	}
+	// sync discard files
+	for _, dis := range db.discardsMap {
+		if err := dis.sync(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -220,6 +226,10 @@ func (db *LazyDB) Close() error {
 	db.fidsMap = nil
 	db.activeLogFileMap = nil
 	db.archivedLogFile = nil
+	// close discard channel
+	for _, dis := range db.discardsMap {
+		close(dis.valChan)
+	}
 	return nil
 }
 
@@ -390,6 +400,9 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 		fids.fids = append(fids.fids, newFid)
 		fids.mu.Unlock()
 
+		// update discard of new file
+		db.discardsMap[typ].setTotal(newFid, uint32(db.cfg.DiscardBufferSize))
+
 		// update activeLogFile
 		activeLogFile.lf = newActiveLF
 	}
@@ -493,6 +506,8 @@ func (db *LazyDB) getActiveLogFile(typ valueType) *MutexLogFile {
 		fids.fids = append(fids.fids, lf.Fid)
 		fids.mu.Unlock()
 
+		db.discardsMap[typ].setTotal(lf.Fid, uint32(db.cfg.DiscardBufferSize))
+
 		return newMutexLf
 	}
 	return mutexLf
@@ -517,6 +532,23 @@ func (db *LazyDB) initDiscard() error {
 	db.discardsMap = discardsMap
 	return nil
 }
+
+func (db *LazyDB) sendDiscard(oldVal any, updated bool, typ valueType) error {
+	if !updated || oldVal == nil {
+		return nil
+	}
+	node, _ := oldVal.(*Value)
+	if node == nil || node.entrySize == 0 {
+		return nil
+	}
+
+	select {
+	case db.discardsMap[typ].valChan <- node:
+	default:
+		log.Fatalf("send discard fail")
+	}
+}
+
 func encodeKey(key, subKey []byte) []byte {
 	header := make([]byte, encodeHeaderSize)
 	var index int
