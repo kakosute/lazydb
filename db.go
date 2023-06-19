@@ -547,6 +547,7 @@ func (db *LazyDB) sendDiscard(oldVal any, updated bool, typ valueType) error {
 	default:
 		log.Fatalf("send discard fail")
 	}
+	return nil
 }
 
 func encodeKey(key, subKey []byte) []byte {

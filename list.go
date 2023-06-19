@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"lazydb/ds"
 	"lazydb/logfile"
+	"log"
 )
 
 func (db *LazyDB) LPush(key []byte, args ...[]byte) (err error) {
@@ -236,12 +237,12 @@ func (db *LazyDB) pop(key []byte, isLeft bool) (value []byte, err error) {
 		return nil, nil
 	}
 	entry := &logfile.LogEntry{Key: encodeKey, Stat: logfile.SDelete}
-	_, err = db.writeLogEntry(valueTypeList, entry)
+	pos, err := db.writeLogEntry(valueTypeList, entry)
 	if err != nil {
 		return nil, nil
 	}
 
-	//delVal, updated := idxTree.Delete(encodeKey)
+	delVal, updated := idxTree.Delete(encodeKey)
 
 	if isLeft {
 		headSeq++
@@ -252,7 +253,16 @@ func (db *LazyDB) pop(key []byte, isLeft bool) (value []byte, err error) {
 		return nil, err
 	}
 
-	// TODO: send discard
+	// delete invalid entry
+	db.sendDiscard(delVal, updated, valueTypeList)
+	// also merge the delete entry
+	_, size := logfile.EncodeEntry(entry)
+	node := &Value{fid: pos.fid, entrySize: size}
+	select {
+	case db.discardsMap[valueTypeList].valChan <- node:
+	default:
+		log.Fatal("send discard fail")
+	}
 
 	if tailSeq-headSeq-1 == 0 {
 		// reset meta

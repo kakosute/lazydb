@@ -6,6 +6,7 @@ import (
 	"lazydb/ds"
 	"lazydb/logfile"
 	"lazydb/util"
+	"log"
 )
 
 var (
@@ -274,7 +275,7 @@ func (db *LazyDB) ZRem(key []byte, members ...[]byte) (number int, err error) {
 	for _, member := range members {
 		zSetKey := encodeKey(key, member)
 		entry := &logfile.LogEntry{Key: zSetKey, Stat: logfile.SDelete}
-		_, err = db.writeLogEntry(valueTypeZSet, entry)
+		pos, err := db.writeLogEntry(valueTypeZSet, entry)
 		if err != nil {
 			return count, err
 		}
@@ -285,10 +286,19 @@ func (db *LazyDB) ZRem(key []byte, members ...[]byte) (number int, err error) {
 			}
 			continue
 		}
-		idx.tree.Delete(zSetKey)
+		val, updated := idx.tree.Delete(zSetKey)
 		idx.skl.Delete(&Node{score: util.ByteToFloat64(score), member: util.ByteToString(member)})
 		count++
-		// TODO send discard
+		// delete invalid entry
+		db.sendDiscard(val, updated, valueTypeZSet)
+		// also merge the delete entry
+		_, size := logfile.EncodeEntry(entry)
+		node := &Value{fid: pos.fid, entrySize: size}
+		select {
+		case db.discardsMap[valueTypeZSet].valChan <- node:
+		default:
+			log.Fatal("send discard fail")
+		}
 	}
 	return count, nil
 }

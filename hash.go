@@ -5,6 +5,7 @@ import (
 	"lazydb/ds"
 	"lazydb/logfile"
 	"lazydb/util"
+	"log"
 )
 
 var (
@@ -78,15 +79,24 @@ func (db *LazyDB) HDel(key []byte, fields ...[]byte) (int, error) {
 	for _, field := range fields {
 		hashKey := encodeKey(key, field)
 		entry := &logfile.LogEntry{Key: hashKey, Stat: logfile.SDelete}
-		_, err := db.writeLogEntry(valueTypeHash, entry)
+		pos, err := db.writeLogEntry(valueTypeHash, entry)
 		if err != nil {
 			return count, err
 		}
-		_, updated := idxTree.Delete(hashKey)
+		val, updated := idxTree.Delete(hashKey)
 		if updated {
 			count++
 		}
-		// TODO send discard
+		// delete invalid entry
+		db.sendDiscard(val, updated, valueTypeHash)
+		// also merge the delete entry
+		_, size := logfile.EncodeEntry(entry)
+		node := &Value{fid: pos.fid, entrySize: size}
+		select {
+		case db.discardsMap[valueTypeHash].valChan <- node:
+		default:
+			log.Fatal("send discard fail")
+		}
 	}
 	return count, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"lazydb/logfile"
 	"lazydb/util"
+	"log"
 	"math"
 	"regexp"
 	"strconv"
@@ -108,12 +109,22 @@ func (db *LazyDB) GetDel(key []byte) ([]byte, error) {
 	}
 
 	entry := &logfile.LogEntry{Key: key, Stat: logfile.SDelete}
-	_, err = db.writeLogEntry(valueTypeString, entry)
+	pos, err := db.writeLogEntry(valueTypeString, entry)
 	if err != nil {
 		return nil, err
 	}
-	db.strIndex.idxTree.Delete(key)
-	//TODO: send discard
+	delVal, updated := db.strIndex.idxTree.Delete(key)
+
+	// delete invalid entry
+	db.sendDiscard(delVal, updated, valueTypeString)
+	// also merge the delete entry
+	_, size := logfile.EncodeEntry(entry)
+	node := &Value{fid: pos.fid, entrySize: size}
+	select {
+	case db.discardsMap[valueTypeString].valChan <- node:
+	default:
+		log.Fatal("send discard fail")
+	}
 	return val, nil
 }
 
@@ -123,12 +134,22 @@ func (db *LazyDB) Delete(key []byte) error {
 	defer db.strIndex.mu.Unlock()
 
 	entry := &logfile.LogEntry{Key: key, Stat: logfile.SDelete}
-	_, err := db.writeLogEntry(valueTypeString, entry)
+	pos, err := db.writeLogEntry(valueTypeString, entry)
 	if err != nil {
 		return err
 	}
-	db.strIndex.idxTree.Delete(key)
-	//TODO: send discard
+	delVal, updated := db.strIndex.idxTree.Delete(key)
+
+	// delete invalid entry
+	db.sendDiscard(delVal, updated, valueTypeString)
+	// also merge the delete entry
+	_, size := logfile.EncodeEntry(entry)
+	node := &Value{fid: pos.fid, entrySize: size}
+	select {
+	case db.discardsMap[valueTypeString].valChan <- node:
+	default:
+		log.Fatal("send discard fail")
+	}
 	return nil
 }
 

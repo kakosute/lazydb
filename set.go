@@ -3,6 +3,7 @@ package lazydb
 import (
 	"lazydb/ds"
 	"lazydb/logfile"
+	"log"
 )
 
 // SAdd add the values the set stored at key.
@@ -105,18 +106,27 @@ func (db *LazyDB) sremInternal(key []byte, member []byte) error {
 	sum := db.setIndex.murHash.EncodeSum128()
 	db.setIndex.murHash.Reset()
 
-	_, updated := idxTree.Delete(sum)
+	val, updated := idxTree.Delete(sum)
 	if !updated {
 		return nil
 	}
 
 	entry := &logfile.LogEntry{Key: key, Value: sum, Stat: logfile.SDelete}
-	_, err := db.writeLogEntry(valueTypeSet, entry)
+	pos, err := db.writeLogEntry(valueTypeSet, entry)
 	if err != nil {
 		return err
 	}
 
-	// TODO: sendDiscard
+	// delete invalid entry
+	db.sendDiscard(val, updated, valueTypeSet)
+	// also merge the delete entry
+	_, size := logfile.EncodeEntry(entry)
+	node := &Value{fid: pos.fid, entrySize: size}
+	select {
+	case db.discardsMap[valueTypeSet].valChan <- node:
+	default:
+		log.Fatal("send discard fail")
+	}
 	return nil
 }
 
