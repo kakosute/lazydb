@@ -231,3 +231,26 @@ func (d *discard) sync() error {
 func (d *discard) close() error {
 	return d.file.Close()
 }
+
+func (d *discard) clear(fid uint32) {
+	d.Lock()
+	defer d.Unlock()
+
+	// re-initialize
+	offset, err := d.alloc(fid)
+	if err != nil {
+		log.Fatalf("discard file allocate err: %+v", err)
+		return
+	}
+	buf := make([]byte, discardRecordSize)
+	if _, err := d.file.Write(buf, offset); err != nil {
+		log.Fatalf("incr value in discard err:%v", err)
+		return
+	}
+
+	// release free space of discard file
+	if offset, ok := d.location[fid]; ok {
+		d.freeList = append(d.freeList, offset)
+		delete(d.location, fid)
+	}
+}

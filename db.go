@@ -289,55 +289,72 @@ func (db *LazyDB) mergeHash(fid uint32, offset int64, ent *logfile.LogEntry) err
 	return nil
 }
 
-func (db *LazyDB) Merge(typ valueType, targetFid uint32) error {
-	archivedFile := db.getArchivedLogFile(typ, targetFid)
-	if archivedFile == nil {
-		return nil
+func (db *LazyDB) Merge(typ valueType, targetFid uint32, gcRatio float64) error {
+
+	activeFile := db.getActiveLogFile(typ)
+
+	if err := db.discardsMap[typ].sync(); err != nil {
+		return err
 	}
 
-	var offset int64
-	for {
-		ent, size, err := archivedFile.lf.ReadLogEntry(offset)
-		if err != nil {
-			if err == io.EOF || err == logfile.ErrLogEndOfFile {
-				break
+	ccl, err := db.discardsMap[typ].getCCL(activeFile.lf.Fid, gcRatio)
+	if err != nil {
+		return err
+	}
+
+	for _, fid := range ccl {
+		// only merge specified log file
+		if targetFid >= 0 && targetFid != fid {
+			continue
+		}
+		archivedFile := db.getArchivedLogFile(typ, targetFid)
+		if archivedFile == nil {
+			continue
+		}
+		var offset int64
+		for {
+			ent, size, err := archivedFile.lf.ReadLogEntry(offset)
+			if err != nil {
+				if err == io.EOF || err == logfile.ErrLogEndOfFile {
+					break
+				}
+				return err
 			}
-			return err
+			var off = offset
+			offset += int64(size)
+			if ent.Stat == logfile.SDelete {
+				continue
+			}
+			ts := time.Now().Unix()
+			if ent.ExpiredAt != 0 && ent.ExpiredAt <= ts {
+				continue
+			}
+			var mergeErr error
+			switch typ {
+			case valueTypeString:
+				mergeErr = db.mergeStr(archivedFile.lf.Fid, off, ent)
+			case valueTypeHash:
+				mergeErr = db.mergeHash(archivedFile.lf.Fid, off, ent)
+			}
+			if mergeErr != nil {
+				return mergeErr
+			}
 		}
-		var off = offset
-		offset += int64(size)
-		if ent.Stat == logfile.SDelete {
-			continue
-		}
-		ts := time.Now().Unix()
-		if ent.ExpiredAt != 0 && ent.ExpiredAt <= ts {
-			continue
-		}
-		var mergeErr error
-		switch typ {
-		case valueTypeString:
-			mergeErr = db.mergeStr(archivedFile.lf.Fid, off, ent)
-		case valueTypeHash:
-			mergeErr = db.mergeHash(archivedFile.lf.Fid, off, ent)
-		}
-		if mergeErr != nil {
-			return mergeErr
-		}
+
+		// delete older log file
+		archivedLogFiles := db.archivedLogFile[typ]
+		shard := archivedLogFiles.GetShardByWriting(targetFid)
+
+		val, _ := shard.Get(targetFid)
+		mutexLF := val.(*MutexLogFile)
+
+		_ = mutexLF.lf.Delete() // close file and remove local file
+		shard.Remove(targetFid) // remove index from memory
+
+		shard.Unlock()
+
+		db.discardsMap[typ].clear(fid)
 	}
-
-	// delete older log file
-	archivedLogFiles := db.archivedLogFile[typ]
-	shard := archivedLogFiles.GetShardByWriting(targetFid)
-
-	val, _ := shard.Get(targetFid)
-	mutexLF := val.(*MutexLogFile)
-
-	_ = mutexLF.lf.Delete() // close file and remove local file
-	shard.Remove(targetFid) // remove index from memory
-
-	shard.Unlock()
-
-	// TODO: clear discard state.
 
 	return nil
 }

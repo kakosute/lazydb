@@ -26,6 +26,12 @@ type DBConfig struct {
 	// This option represents the size of that channel.
 	// If you got errors like `send discard chan fail`, you can increase this option to avoid it.
 	DiscardBufferSize int
+
+	// LogFileGCRatio if discarded data in log file exceeds this ratio, it can be picked up for compaction(garbage collection)
+	// And if there are many files reached the ratio, we will pick the highest one by one.
+	// The recommended ratio is 0.5, half of the file can be compacted.
+	// Default value is 0.5.
+	LogFileGCRatio float64
 }
 
 func DefaultDBConfig(path string) DBConfig {
@@ -36,5 +42,6 @@ func DefaultDBConfig(path string) DBConfig {
 		LogFileMergeInterval: defaultLogFileMergeInterval,
 		IOType:               defaultIOType,
 		DiscardBufferSize:    8 << 20,
+		LogFileGCRatio:       0.5,
 	}
 }
