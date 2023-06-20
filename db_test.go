@@ -78,7 +78,7 @@ func TestLazyDB_Merge(t *testing.T) {
 
 	lfs := db.fidsMap[valueTypeHash]
 	for _, fid := range lfs.fids {
-		err := db.Merge(valueTypeHash, fid)
+		err := db.Merge(valueTypeHash, fid, 0.1)
 		assert.Nil(t, err)
 	}
 
