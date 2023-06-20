@@ -39,8 +39,7 @@ func (db *LazyDB) HSet(key []byte, args ...[]byte) error {
 		if err != nil {
 			return err
 		}
-		// TODO: sendDiscard
-		err = db.updateIndexTree(valueTypeHash, idxTree, entry, valPos, false)
+		err = db.updateIndexTree(valueTypeHash, idxTree, entry, valPos, true)
 		if err != nil {
 			return err
 		}
@@ -230,8 +229,7 @@ func (db *LazyDB) HSetNX(key, field, value []byte) error {
 	if err != nil {
 		return err
 	}
-	// TODO: sendDiscard
-	err = db.updateIndexTree(valueTypeHash, idxTree, entry, valPos, false)
+	err = db.updateIndexTree(valueTypeHash, idxTree, entry, valPos, true)
 	if err != nil {
 		return err
 	}

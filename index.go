@@ -142,11 +142,15 @@ func (db *LazyDB) updateIndexTree(typ valueType, idxTree *ds.AdaptiveRadixTree, 
 	}
 	idxNode := &Value{fid: vPos.fid, offset: vPos.offset, entrySize: size}
 
-	// TODO: set expired time
+	if entry.ExpiredAt != 0 {
+		idxNode.expiredAt = entry.ExpiredAt
+	}
 
-	_, _ = idxTree.Put(entry.Key, idxNode)
+	oldVal, updated := idxTree.Put(entry.Key, idxNode)
 
-	// TODO: send discard
+	if sendDiscard {
+		db.sendDiscard(oldVal, updated, typ)
+	}
 
 	return nil
 }

@@ -114,7 +114,7 @@ func (db *LazyDB) LSet(key []byte, index int, value []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	err = db.updateIndexTree(valueTypeList, idxTree, entry, pos, false)
+	err = db.updateIndexTree(valueTypeList, idxTree, entry, pos, true)
 	return err
 }
 
@@ -292,7 +292,7 @@ func (db *LazyDB) push(key []byte, arg []byte, isLeft bool) (err error) {
 	if err != nil {
 		return err
 	}
-	err = db.updateIndexTree(valueTypeList, idxTree, entry, vPos, false)
+	err = db.updateIndexTree(valueTypeList, idxTree, entry, vPos, true)
 	if err != nil {
 		return err
 	}
@@ -328,7 +328,7 @@ func (db *LazyDB) saveLMeta(idxTree *ds.AdaptiveRadixTree, key []byte, headSeq u
 	if err != nil {
 		return err
 	}
-	err = db.updateIndexTree(valueTypeList, idxTree, entry, pos, false)
+	err = db.updateIndexTree(valueTypeList, idxTree, entry, pos, true)
 	return err
 }
 

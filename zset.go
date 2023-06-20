@@ -64,7 +64,6 @@ func (db *LazyDB) ZAdd(key []byte, args ...[]byte) error {
 		if err != nil {
 			return err
 		}
-		// TODO: sendDiscard
 		if tree.Get(zsetKey) != nil {
 			oriScore, err := db.getValue(tree, zsetKey, valueTypeZSet)
 			if err != nil {
@@ -72,7 +71,7 @@ func (db *LazyDB) ZAdd(key []byte, args ...[]byte) error {
 			}
 			skl.Delete(&Node{score: util.ByteToFloat64(oriScore), member: util.ByteToString(member)})
 		}
-		err = db.updateIndexTree(valueTypeZSet, tree, entry, valPos, false)
+		err = db.updateIndexTree(valueTypeZSet, tree, entry, valPos, true)
 		if err != nil {
 			return err
 		}
