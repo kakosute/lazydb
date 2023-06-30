@@ -234,17 +234,17 @@ func (db *LazyDB) Close() error {
 }
 
 func (db *LazyDB) mergeStr(fid uint32, offset int64, ent *logfile.LogEntry) error {
-	strKey := util.ByteToString(ent.Key)
+	db.strIndex.mu.RLock()
+	defer db.strIndex.mu.RUnlock()
 
-	shard := db.index.GetShardByWriting(strKey)
-	defer shard.Unlock()
-
-	indexVal, _ := shard.Get(strKey)
+	indexVal := db.strIndex.idxTree.Get(ent.Key)
 	if indexVal == nil {
 		return nil
 	}
 
 	val, _ := indexVal.(*Value)
+	// Only update rewriting entry when fid and offset is the same
+	// as in index. Otherwise, this entry is updated in other log.
 	if val != nil && val.fid == fid && val.offset == offset {
 		// rewrite entry
 		valuePos, err := db.writeLogEntry(valueTypeString, ent)
@@ -252,13 +252,7 @@ func (db *LazyDB) mergeStr(fid uint32, offset int64, ent *logfile.LogEntry) erro
 			return err
 		}
 		// update index
-		shard.Set(strKey, Value{
-			value:     val.value,
-			vType:     valueTypeString,
-			fid:       valuePos.fid,
-			offset:    valuePos.offset,
-			entrySize: valuePos.entrySize,
-		})
+		db.updateIndexTree(valueTypeString, db.strIndex.idxTree, ent, valuePos, false)
 	}
 	return nil
 }
