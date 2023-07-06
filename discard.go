@@ -3,6 +3,7 @@ package lazydb
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"lazydb/iocontroller"
 	"lazydb/logfile"
@@ -48,7 +49,7 @@ func newDiscard(path, name string, buffersize int) (*discard, error) {
 	location := map[uint32]int64{}
 	var offset int64
 	for {
-		buf := make([]byte, 8)
+		buf := make([]byte, discardRecordSize)
 		if _, err := file.Read(buf, offset); err != nil {
 			if err == io.EOF || err == logfile.ErrLogEndOfFile {
 				break
@@ -72,7 +73,7 @@ func newDiscard(path, name string, buffersize int) (*discard, error) {
 		freeList: freeList,
 		location: location,
 	}
-
+	go d.listenUpdate()
 	return d, nil
 }
 
@@ -202,6 +203,9 @@ func (d *discard) getCCL(activeFid uint32, ratio float64) ([]uint32, error) {
 			return nil, err
 		}
 		offset += discardRecordSize
+		if offset == 8172 {
+			fmt.Print("")
+		}
 		fid := binary.LittleEndian.Uint32(buf[:4])
 		totalSize := binary.LittleEndian.Uint32(buf[4:8])
 		v := binary.LittleEndian.Uint32(buf[8:12])

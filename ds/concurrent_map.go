@@ -143,3 +143,12 @@ func (cm *ConcurrentMap[K]) Pop(key K) (any, bool) {
 	shard := cm.GetShard(key)
 	return shard.Pop(key)
 }
+
+// Size returns the number of keys
+func (cm *ConcurrentMap[K]) Size() int {
+	cnt := 0
+	for _, m := range cm.shards {
+		cnt += len(m.simpleMap)
+	}
+	return cnt
+}

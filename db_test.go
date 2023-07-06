@@ -69,24 +69,43 @@ func TestLazyDB_Merge(t *testing.T) {
 	db, err := Open(cfg)
 	assert.Nil(t, err)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
+		db.Set(GetKey(1), GetKey(32))
 		db.HSet(GetKey(1), []byte("f1"), GetValue(32))
+		db.ZAdd(GetKey(1), [][]byte{util.Float64ToByte(1), []byte("m1")}...)
 	}
-	for i := 0; i < 10; i++ {
-		db.HSet(GetKey(2), []byte("f2"), GetValue(32))
-	}
-
-	lfs := db.fidsMap[valueTypeHash]
-	for _, fid := range lfs.fids {
-		err := db.Merge(valueTypeHash, fid, 0.1)
-		assert.Nil(t, err)
+	for i := 0; i < 100; i++ {
+		db.Set(GetKey(2), GetKey(32))
+		db.HSet(GetKey(2), []byte("f1"), GetValue(32))
+		db.ZAdd(GetKey(2), [][]byte{util.Float64ToByte(1), []byte("m1")}...)
 	}
 
-	defer func(path string) {
-		_ = os.RemoveAll(path)
-	}(db.cfg.DBPath)
-	err = db.Close()
-	assert.Nil(t, err)
+	valueTypeMap := map[valueType]string{
+		valueTypeString: "String",
+		valueTypeList:   "List",
+		valueTypeHash:   "Hash",
+		valueTypeSet:    "Set",
+		valueTypeZSet:   "ZSet",
+	}
+	fmt.Printf("File number before garbage collection: \n")
+	for i := valueTypeString; i <= valueTypeZSet; i++ {
+		fmt.Printf("Type: %s\tFileNumber: %d\n", valueTypeMap[i], db.archivedLogFile[i].Size()+1)
+	}
+
+	for i := valueTypeString; i <= valueTypeZSet; i++ {
+		lfs := db.fidsMap[i]
+		for _, fid := range lfs.fids {
+			err := db.Merge(i, fid, 0.1)
+			assert.Nil(t, err)
+		}
+	}
+
+	fmt.Printf("File number after garbage collection: \n")
+	for i := valueTypeString; i <= valueTypeZSet; i++ {
+		fmt.Printf("Type: %s\tFileNumber: %d\n", valueTypeMap[i], db.archivedLogFile[i].Size()+1)
+	}
+
+	defer destroyDB(db)
 }
 
 func TestLazyDB_ReadLogEntry(t *testing.T) {

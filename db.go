@@ -204,6 +204,7 @@ func (db *LazyDB) Sync() error {
 // Close db
 func (db *LazyDB) Close() error {
 	for _, mlf := range db.activeLogFileMap {
+		mlf.lf.Sync()
 		err := mlf.lf.Close()
 		if err != nil {
 			log.Fatalf("Close log file err: %v", err)
@@ -218,10 +219,11 @@ func (db *LazyDB) Close() error {
 			mlf.lf.Sync()
 			err := mlf.lf.Close()
 			if err != nil {
-				log.Fatalf("Close log file err: %v", err)
+				log.Fatalf("Close archived log file err: %v", err)
 			}
 		}
 	}
+
 	db.index = nil
 	db.fidsMap = nil
 	db.activeLogFileMap = nil
@@ -441,7 +443,7 @@ func (db *LazyDB) writeLogEntry(typ valueType, entry *logfile.LogEntry) (*ValueP
 		fids.mu.Unlock()
 
 		// update discard of new file
-		db.discardsMap[typ].setTotal(newFid, uint32(db.cfg.DiscardBufferSize))
+		db.discardsMap[typ].setTotal(newFid, uint32(db.cfg.MaxLogFileSize))
 
 		// update activeLogFile
 		activeLogFile.lf = newActiveLF
@@ -570,6 +572,7 @@ func (db *LazyDB) initDiscard() error {
 		discardsMap[valueType(i)] = d
 	}
 	db.discardsMap = discardsMap
+
 	return nil
 }
 
