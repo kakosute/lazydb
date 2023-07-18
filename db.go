@@ -548,7 +548,7 @@ func (db *LazyDB) getActiveLogFile(typ valueType) *MutexLogFile {
 		fids.fids = append(fids.fids, lf.Fid)
 		fids.mu.Unlock()
 
-		db.discardsMap[typ].setTotal(lf.Fid, uint32(db.cfg.DiscardBufferSize))
+		db.discardsMap[typ].setTotal(lf.Fid, uint32(db.cfg.MaxLogFileSize))
 
 		return newMutexLf
 	}

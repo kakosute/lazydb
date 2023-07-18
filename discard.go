@@ -195,6 +195,9 @@ func (d *discard) getCCL(activeFid uint32, ratio float64) ([]uint32, error) {
 	d.Lock()
 	defer d.Unlock()
 	for {
+		if offset == 8172 {
+			fmt.Print("")
+		}
 		buf := make([]byte, discardRecordSize)
 		if _, err := d.file.Read(buf, offset); err != nil {
 			if err == logfile.ErrLogEndOfFile || err == io.EOF {
@@ -203,9 +206,7 @@ func (d *discard) getCCL(activeFid uint32, ratio float64) ([]uint32, error) {
 			return nil, err
 		}
 		offset += discardRecordSize
-		if offset == 8172 {
-			fmt.Print("")
-		}
+
 		fid := binary.LittleEndian.Uint32(buf[:4])
 		totalSize := binary.LittleEndian.Uint32(buf[4:8])
 		v := binary.LittleEndian.Uint32(buf[8:12])
