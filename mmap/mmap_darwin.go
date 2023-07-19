@@ -9,7 +9,7 @@ import (
 
 // MMap uses the mmap system call to memory-map a file. If writable is true,
 // memory protection of the pages is set so that they may be written to as well.
-func mMap(fd *os.File, writable bool, size int64) ([]byte, error) {
+func mmap(fd *os.File, writable bool, size int64) ([]byte, error) {
 	mType := unix.PROT_READ
 	if writable {
 		mType |= unix.PROT_WRITE
@@ -18,13 +18,13 @@ func mMap(fd *os.File, writable bool, size int64) ([]byte, error) {
 }
 
 // mUnmap unmaps a mapped slice
-func mUnmap(b []byte) error {
+func munmap(b []byte) error {
 	return unix.Munmap(b)
 }
 
 // mAdvise provide advice on memory usage.
 // If the page references are expected to be in random order, set the randomRead flag to true.
-func mAdvise(b []byte, randomRead bool) error {
+func madvise(b []byte, randomRead bool) error {
 	advice := unix.MADV_NORMAL
 	if randomRead {
 		advice = unix.MADV_RANDOM
@@ -38,6 +38,6 @@ func mAdvise(b []byte, randomRead bool) error {
 }
 
 // mSync syncs the mapped data
-func mSync(b []byte) error {
+func msync(b []byte) error {
 	return unix.Msync(b, unix.MS_SYNC)
 }
