@@ -100,6 +100,10 @@ func Open(path string, fid uint32, fsize int64, ftype FType, ioType IOType) (*Lo
 		if controller, err = iocontroller.NewFileIOController(fileName, fsize); err != nil {
 			return nil, err
 		}
+	case Mmap:
+		if controller, err = iocontroller.NewMMapController(fileName, fsize); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, ErrUnsupportedIoType
 	}
