@@ -285,6 +285,32 @@ func (db *LazyDB) mergeHash(fid uint32, offset int64, ent *logfile.LogEntry) err
 	return nil
 }
 
+func (db *LazyDB) mergeSet(fid uint32, offset int64, ent *logfile.LogEntry) error {
+	key, _ := decodeKey(ent.Key)
+	db.setIndex.mu.RLock()
+	defer db.setIndex.mu.RUnlock()
+	idxTree := db.setIndex.trees[util.ByteToString(key)]
+
+	indexVal := idxTree.Get(ent.Key)
+	if indexVal == nil {
+		return nil
+	}
+
+	val, _ := indexVal.(*Value)
+	// Only update rewriting entry when fid and offset is the same
+	// as in index. Otherwise, this entry is updated in other log.
+	if val != nil && val.fid == fid && val.offset == offset {
+		// rewrite entry
+		valuePos, err := db.writeLogEntry(valueTypeSet, ent)
+		if err != nil {
+			return err
+		}
+		// update index
+		db.updateIndexTree(valueTypeSet, idxTree, ent, valuePos, false)
+	}
+	return nil
+}
+
 func (db *LazyDB) mergeZSet(fid uint32, offset int64, ent *logfile.LogEntry) error {
 	key, _ := decodeKey(ent.Key)
 	db.zSetIndex.mu.RLock()
@@ -382,6 +408,8 @@ func (db *LazyDB) Merge(typ valueType, targetFid uint32, gcRatio float64) error 
 				mergeErr = db.mergeStr(archivedFile.lf.Fid, off, ent)
 			case valueTypeHash:
 				mergeErr = db.mergeHash(archivedFile.lf.Fid, off, ent)
+			case valueTypeSet:
+				mergeErr = db.mergeSet(archivedFile.lf.Fid, off, ent)
 			case valueTypeZSet:
 				mergeErr = db.mergeZSet(archivedFile.lf.Fid, off, ent)
 			case valueTypeList:
