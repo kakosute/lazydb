@@ -109,6 +109,7 @@ var (
 	ErrLogFileNotExist = errors.New("log file is not exist")
 	ErrOpenLogFile     = errors.New("open Log file error")
 	ErrWrongIndex      = errors.New("index is out of range")
+	ErrDatabaseClosed  = errors.New("database is closed")
 )
 
 func newStrIndex() *strIndex {
@@ -233,6 +234,10 @@ func (db *LazyDB) Close() error {
 		close(dis.valChan)
 	}
 	return nil
+}
+
+func (db *LazyDB) IsClosed() bool {
+	return db.fidsMap == nil && db.activeLogFileMap == nil && db.archivedLogFile == nil
 }
 
 func (db *LazyDB) mergeStr(fid uint32, offset int64, ent *logfile.LogEntry) error {
